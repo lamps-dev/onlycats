@@ -16,6 +16,8 @@ import DeveloperDashboard from './pages/DeveloperDashboard.jsx';
 import ApiDocumentation from './pages/ApiDocumentation.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import TermsPage from './pages/TermsPage.jsx';
+import PrivacyPage from './pages/PrivacyPage.jsx';
 
 function App() {
   return (
@@ -29,6 +31,8 @@ function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/discover" element={<DiscoveryPage />} />
             <Route path="/api-docs" element={<ApiDocumentation />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/feed" element={
               <ProtectedRoute>
                 <FeedPage />

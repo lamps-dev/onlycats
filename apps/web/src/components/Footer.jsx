@@ -2,8 +2,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Cat, Heart } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext.jsx';
 
 const Footer = () => {
+  const { isAuthenticated, currentUser } = useAuth();
   return (
     <footer className="border-t bg-muted/30 mt-20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -30,11 +32,22 @@ const Footer = () => {
                   Discover Creators
                 </Link>
               </li>
+              {isAuthenticated && currentUser?.id && (
+                <li>
+                  <Link to={`/${currentUser.id}`} className="hover:text-primary transition-colors">
+                    My Profile
+                  </Link>
+                </li>
+              )}
               <li>
-                <span className="cursor-default">Privacy Pawlicy</span>
+                <Link to="/privacy" className="hover:text-primary transition-colors">
+                  Privacy Pawlicy
+                </Link>
               </li>
               <li>
-                <span className="cursor-default">Terms ofService</span>
+                <Link to="/terms" className="hover:text-primary transition-colors">
+                  Terms of Service
+                </Link>
               </li>
             </ul>
           </div>
