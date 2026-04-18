@@ -1,18 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
+import ContentUpload from '@/components/ContentUpload.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Heart, RefreshCw, AlertCircle } from 'lucide-react';
+import { Heart, RefreshCw, AlertCircle, Plus } from 'lucide-react';
 
 const FeedPage = () => {
   const { currentUser } = useAuth();
   const [feedItems, setFeedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const autoRefreshInterval = useRef(null);
 
   const fetchFeed = useCallback(async (silent = false) => {
@@ -72,14 +75,22 @@ const FeedPage = () => {
       <main className="min-h-[calc(100vh-4rem)] py-12">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-8 gap-3">
               <h1 className="text-4xl font-bold" style={{ letterSpacing: '-0.02em' }}>
                 Your feed
               </h1>
-              <Button variant="ghost" size="sm" onClick={() => fetchFeed()} disabled={loading}>
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                {currentUser && (
+                  <Button size="sm" onClick={() => setUploadOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Upload cat
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => fetchFeed()} disabled={loading}>
+                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
             </div>
 
             {error && (
@@ -129,6 +140,26 @@ const FeedPage = () => {
       </main>
 
       <Footer />
+
+      {currentUser && (
+        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Upload a cat</DialogTitle>
+              <DialogDescription>
+                Share a photo or video — it&apos;ll appear on your profile and your followers&apos; feeds.
+              </DialogDescription>
+            </DialogHeader>
+            <ContentUpload
+              creatorId={currentUser.id}
+              onUploadSuccess={() => {
+                setUploadOpen(false);
+                fetchFeed(true);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 };

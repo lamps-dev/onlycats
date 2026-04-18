@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import supabase from '@/lib/supabaseClient.js';
+import apiServerClient from '@/lib/apiServerClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Upload, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,15 +57,21 @@ const ContentUpload = ({ creatorId, onUploadSuccess }) => {
     }, 100);
 
     try {
-      const ext = file.name.split('.').pop();
-      const path = `${currentUser.id}/${crypto.randomUUID()}.${ext}`;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not signed in');
 
-      const { error: uploadErr } = await supabase.storage
-        .from('content')
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (uploadErr) throw uploadErr;
+      const { uploadUrl, publicUrl } = await apiServerClient.post(
+        '/uploads/sign',
+        { contentType: file.type, size: file.size },
+        { headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
 
-      const { data: { publicUrl } } = supabase.storage.from('content').getPublicUrl(path);
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error(`Storage upload failed (${putRes.status})`);
 
       const { error: insertErr } = await supabase
         .from('content')

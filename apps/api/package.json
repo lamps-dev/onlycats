@@ -9,6 +9,8 @@
 		"lint": "eslint . --quiet"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.705.0",
+		"@aws-sdk/s3-request-presigner": "^3.705.0",
 		"@supabase/supabase-js": "^2.46.1",
 		"cors": "^2.8.5",
 		"dotenv": "^16.4.7",

@@ -42,28 +42,42 @@ export const AuthProvider = ({ children }) => {
 
 	useEffect(() => {
 		let cancelled = false;
+		let lastProfileUserId = null;
+		let oauthHandled = false;
 		const wasOAuthCallback = typeof window !== 'undefined' && window.location.hash.includes('access_token=');
 
-		const hydrate = async () => {
-			const { data: { session } } = await supabase.auth.getSession();
-			const profile = await loadProfile(session?.user?.id);
-			if (!cancelled) {
-				setCurrentUser(mergeUserWithProfile(session?.user, profile));
-				setInitialLoading(false);
-				if (wasOAuthCallback && session?.user) {
-					navigate('/discover', { replace: true });
-				}
+		const applySession = async (session) => {
+			if (cancelled) return;
+			const user = session?.user ?? null;
+
+			setCurrentUser((prev) => (prev?.id === user?.id ? prev : mergeUserWithProfile(user, null)));
+			setInitialLoading(false);
+
+			if (!oauthHandled && wasOAuthCallback && user) {
+				oauthHandled = true;
+				navigate('/discover', { replace: true });
+			}
+
+			if (user && user.id !== lastProfileUserId) {
+				lastProfileUserId = user.id;
+				const profile = await loadProfile(user.id);
+				if (!cancelled) setCurrentUser(mergeUserWithProfile(user, profile));
+			} else if (!user) {
+				lastProfileUserId = null;
 			}
 		};
-		hydrate();
 
-		const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-			const profile = await loadProfile(session?.user?.id);
-			if (!cancelled) setCurrentUser(mergeUserWithProfile(session?.user, profile));
+		const safetyTimer = setTimeout(() => {
+			if (!cancelled) setInitialLoading(false);
+		}, 3000);
+
+		const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+			applySession(session);
 		});
 
 		return () => {
 			cancelled = true;
+			clearTimeout(safetyTimer);
 			subscription.unsubscribe();
 		};
 	}, [navigate]);
