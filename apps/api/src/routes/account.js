@@ -1,19 +1,31 @@
 import { Router } from 'express';
 import { ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { r2, R2_BUCKET_NAME } from '../utils/r2Client.js';
-import { requireUser } from '../middleware/userAuthMiddleware.js';
+import { requireUser, authenticate } from '../middleware/userAuthMiddleware.js';
 import supabase from '../utils/supabaseClient.js';
 import logger from '../utils/logger.js';
 import { getUserRole } from '../utils/roles.js';
 
 const router = Router();
 
-// GET /account/me — returns { id, role } for the caller. Used by the frontend
-// to decide whether to show admin/moderator UI.
-router.get('/me', requireUser, async (req, res, next) => {
+// GET /account/me — returns { id, role, sanction? } for the caller. Used by
+// the frontend to decide whether to show admin/moderator UI, and to render a
+// banned/timeout screen when the caller has an active sanction. Uses bare
+// `authenticate` so banned users still receive their ban details.
+router.get('/me', authenticate, async (req, res, next) => {
 	try {
 		const role = await getUserRole(req.user.id);
-		res.json({ id: req.user.id, role });
+		const s = req.userSanction;
+		const sanction = s
+			? {
+				kind: s.kind,
+				permanent: s.permanent,
+				reason: s.reason,
+				issued_at: s.issued_at,
+				expires_at: s.expires_at,
+			}
+			: null;
+		res.json({ id: req.user.id, role, sanction });
 	} catch (err) {
 		next(err);
 	}

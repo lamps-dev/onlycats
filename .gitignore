@@ -34,3 +34,5 @@ supabase/.temp/
 
 # Horizons export artifact
 app.tar.gz
+
+.claude/settings.local.json

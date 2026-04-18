@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import routes from './routes/index.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.js';
 import { globalRateLimit } from './middleware/global-rate-limit.js';
+import { enforceIpBan } from './middleware/enforceIpBan.js';
 import { BodyLimit } from './constants/common.js';
 
 export const createApp = () => {
@@ -22,6 +23,7 @@ export const createApp = () => {
 	app.use(cors({ origin: corsOrigin, credentials: corsOrigin !== true }));
 	app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 	app.use(globalRateLimit);
+	app.use(enforceIpBan);
 	app.use(express.json({ limit: BodyLimit }));
 	app.use(express.urlencoded({ extended: true, limit: BodyLimit }));
 

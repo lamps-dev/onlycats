@@ -4,10 +4,11 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { useTheme } from '@/contexts/ThemeContext.jsx';
 import { Button } from '@/components/ui/button';
-import { Cat, LogOut, Shield, Settings, Sun, Moon } from 'lucide-react';
+import { Cat, LogOut, Shield, Settings, Sun, Moon, Gavel } from 'lucide-react';
+import TimeoutBanner from '@/components/TimeoutBanner.jsx';
 
 const Header = () => {
-  const { isAuthenticated, logout, currentUser, isOwner } = useAuth();
+  const { isAuthenticated, logout, currentUser, isOwner, isModerator } = useAuth();
   const { resolved, toggle } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,6 +21,7 @@ const Header = () => {
   const isActive = (path) => location.pathname === path;
 
   return (
+    <>
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
@@ -67,6 +69,17 @@ const Header = () => {
                 >
                   Developer
                 </Link>
+                {isModerator && (
+                  <Link
+                    to="/moderation"
+                    className={`text-sm font-medium transition-colors hover:text-primary inline-flex items-center gap-1 ${
+                      isActive('/moderation') ? 'text-primary' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <Gavel className="w-4 h-4" />
+                    Moderation
+                  </Link>
+                )}
                 {isOwner && (
                   <Link
                     to="/admin"
@@ -135,6 +148,8 @@ const Header = () => {
         </div>
       </div>
     </header>
+    <TimeoutBanner />
+    </>
   );
 };
 

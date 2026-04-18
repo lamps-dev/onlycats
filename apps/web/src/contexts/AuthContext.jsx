@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useNavigate } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
+import BannedScreen from '@/components/BannedScreen.jsx';
 
 const AuthContext = createContext(null);
 
@@ -24,24 +25,33 @@ const loadProfile = async (userId) => {
 	return data ?? null;
 };
 
-// Ask the API for our authoritative role. This also triggers server-side
-// owner self-heal (in requireUser), so the first call after the owner's first
-// Discord login is what actually promotes them. Returns null on failure.
-const fetchServerRole = async (accessToken) => {
-	if (!accessToken) return null;
+// Ask the API for our authoritative role and any active sanction. This call
+// uses the bare-authenticate path on the server, so banned users still get a
+// 200 with sanction details (so the UI can render a banned screen).
+// Returns { role, sanction } where either field may be null.
+const fetchServerAccount = async (accessToken) => {
+	if (!accessToken) return { role: null, sanction: null };
 	try {
 		const res = await apiServerClient.fetch('/account/me', {
 			headers: { Authorization: `Bearer ${accessToken}` },
 		});
-		if (!res.ok) return null;
+		if (!res.ok) {
+			// 403 with code IP_BANNED is possible too — propagate via sanction
+			// so the UI can show the right message.
+			try {
+				const body = await res.json();
+				if (body?.sanction) return { role: null, sanction: body.sanction };
+			} catch (_) { /* ignore */ }
+			return { role: null, sanction: null };
+		}
 		const body = await res.json();
-		return body?.role ?? null;
+		return { role: body?.role ?? null, sanction: body?.sanction ?? null };
 	} catch (_) {
-		return null;
+		return { role: null, sanction: null };
 	}
 };
 
-const mergeUserWithProfile = (user, profile) => {
+const mergeUserWithProfile = (user, profile, sanction = null) => {
 	if (!user) return null;
 	return {
 		id: user.id,
@@ -56,6 +66,7 @@ const mergeUserWithProfile = (user, profile) => {
 		notification_prefs: profile?.notification_prefs ?? { tips: true, follows: true, likes: false, email: false },
 		follower_count: profile?.follower_count ?? 0,
 		role: profile?.role ?? 'user',
+		sanction,
 	};
 };
 
@@ -84,16 +95,13 @@ export const AuthProvider = ({ children }) => {
 
 			if (user && user.id !== lastProfileUserId) {
 				lastProfileUserId = user.id;
-				const [profile, serverRole] = await Promise.all([
+				const [profile, account] = await Promise.all([
 					loadProfile(user.id),
-					fetchServerRole(session?.access_token),
+					fetchServerAccount(session?.access_token),
 				]);
 				if (!cancelled) {
-					const merged = mergeUserWithProfile(user, profile);
-					// The server's role check runs owner self-heal; prefer it when
-					// available so the cached client cache reflects any promotion
-					// that just happened on the server during this request.
-					if (merged && serverRole) merged.role = serverRole;
+					const merged = mergeUserWithProfile(user, profile, account.sanction);
+					if (merged && account.role) merged.role = account.role;
 					setCurrentUser(merged);
 				}
 			} else if (!user) {
@@ -147,16 +155,17 @@ export const AuthProvider = ({ children }) => {
 
 	const refreshProfile = useCallback(async () => {
 		const { data: { session } } = await supabase.auth.getSession();
-		const [profile, serverRole] = await Promise.all([
+		const [profile, account] = await Promise.all([
 			loadProfile(session?.user?.id),
-			fetchServerRole(session?.access_token),
+			fetchServerAccount(session?.access_token),
 		]);
-		const merged = mergeUserWithProfile(session?.user, profile);
-		if (merged && serverRole) merged.role = serverRole;
+		const merged = mergeUserWithProfile(session?.user, profile, account.sanction);
+		if (merged && account.role) merged.role = account.role;
 		setCurrentUser(merged);
 	}, []);
 
 	const role = currentUser?.role ?? 'user';
+	const sanction = currentUser?.sanction ?? null;
 	const value = useMemo(
 		() => ({
 			currentUser,
@@ -169,11 +178,24 @@ export const AuthProvider = ({ children }) => {
 			role,
 			isModerator: role === 'moderator' || role === 'owner',
 			isOwner: role === 'owner',
+			sanction,
+			isBanned: sanction?.kind === 'ban',
+			isTimedOut: sanction?.kind === 'timeout',
 		}),
-		[currentUser, login, signup, authWithDiscord, logout, refreshProfile, role],
+		[currentUser, login, signup, authWithDiscord, logout, refreshProfile, role, sanction],
 	);
 
 	if (initialLoading) return <LoadingScreen />;
+
+	// Banned users see a blocker instead of the app, but still get access to
+	// the AuthContext so the BannedScreen can call logout().
+	if (value.isBanned) {
+		return (
+			<AuthContext.Provider value={value}>
+				<BannedScreen />
+			</AuthContext.Provider>
+		);
+	}
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

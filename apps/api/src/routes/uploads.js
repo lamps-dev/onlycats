@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { r2, R2_BUCKET_NAME, R2_PUBLIC_BASE } from '../utils/r2Client.js';
-import { requireUser } from '../middleware/userAuthMiddleware.js';
+import { requireUser, blockIfTimedOut } from '../middleware/userAuthMiddleware.js';
 import supabase from '../utils/supabaseClient.js';
 import { getUserRole, ROLES } from '../utils/roles.js';
 import logger from '../utils/logger.js';
@@ -33,7 +33,7 @@ const extFromType = (type) => {
 
 const router = Router();
 
-router.post('/sign', requireUser, async (req, res, next) => {
+router.post('/sign', requireUser, blockIfTimedOut, async (req, res, next) => {
 	try {
 		const { contentType, size } = req.body || {};
 

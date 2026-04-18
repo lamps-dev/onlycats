@@ -18,6 +18,7 @@ import AdminPage from './pages/AdminPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PrivacyPage from './pages/PrivacyPage.jsx';
+import ModerationPage from './pages/ModerationPage.jsx';
 
 function App() {
   return (
@@ -51,6 +52,11 @@ function App() {
             <Route path="/settings" element={
               <ProtectedRoute>
                 <SettingsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/moderation" element={
+              <ProtectedRoute>
+                <ModerationPage />
               </ProtectedRoute>
             } />
             <Route path="/:creatorId" element={<CreatorProfile />} />
