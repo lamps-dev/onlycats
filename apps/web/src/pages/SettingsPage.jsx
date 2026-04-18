@@ -13,6 +13,7 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog.jsx';
 import CollectionsManager from '@/components/CollectionsManager.jsx';
+import MarkdownContent from '@/components/MarkdownContent.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { useTheme } from '@/contexts/ThemeContext.jsx';
@@ -163,9 +164,15 @@ const SettingsPage = () => {
                       onChange={(e) => setAboutMe(e.target.value)}
                       maxLength={1000}
                       rows={5}
-                      placeholder="Tell the world about you and your cats"
+                      placeholder="Tell the world about you and your cats (Markdown supported)"
                     />
                     <p className="text-xs text-muted-foreground mt-1">{aboutMe.length}/1000</p>
+                    {aboutMe.trim() && (
+                      <div className="mt-3 rounded-xl border bg-card p-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>
+                        <MarkdownContent>{aboutMe}</MarkdownContent>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

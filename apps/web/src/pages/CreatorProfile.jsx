@@ -9,6 +9,7 @@ import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
 import ContentUpload from '@/components/ContentUpload.jsx';
 import CollectionsManager from '@/components/CollectionsManager.jsx';
+import MarkdownContent from '@/components/MarkdownContent.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Users, UserPlus, UserMinus, Upload, Settings, MapPin, Globe, Link as LinkIcon } from 'lucide-react';
@@ -193,7 +194,7 @@ const CreatorProfile = () => {
                   <h3 className="font-semibold mb-2 flex items-center gap-2">
                     <Globe className="w-4 h-4" /> About me
                   </h3>
-                  <p className="text-sm whitespace-pre-wrap">{creator.about_me}</p>
+                  <MarkdownContent>{creator.about_me}</MarkdownContent>
                 </div>
               )}
 
