@@ -46,7 +46,7 @@ const ContentCard = ({ content, creator, onDelete }) => {
   };
 
   const handleDelete = async () => {
-    if (!isOwner || !canConfirmDelete) return;
+    if (!canDelete || !canConfirmDelete) return;
 
     setDeleting(true);
     try {
@@ -59,11 +59,15 @@ const ContentCard = ({ content, creator, onDelete }) => {
       });
       if (!res.ok) {
         let message = `Delete failed (${res.status})`;
+        let details = '';
         try {
           const body = await res.json();
           if (body?.error) message = body.error;
+          if (body?.code) details = body.code;
         } catch (_) { /* ignore */ }
-        throw new Error(message);
+        const err = new Error(message);
+        err.details = details;
+        throw err;
       }
 
       toast.success('Post deleted');
