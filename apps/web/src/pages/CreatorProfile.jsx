@@ -265,6 +265,11 @@ const CreatorProfile = () => {
                       onDelete={(deletedId) =>
                         setContent((items) => items.filter((i) => i.id !== deletedId))
                       }
+                      onCaptionChange={(postId, caption) =>
+                        setContent((items) =>
+                          items.map((row) => (row.id === postId ? { ...row, caption } : row)),
+                        )
+                      }
                     />
                   ))}
                 </div>

@@ -138,6 +138,15 @@ const FeedPage = () => {
                     onDelete={(deletedId) =>
                       setFeedItems((items) => items.filter((i) => i.content.id !== deletedId))
                     }
+                    onCaptionChange={(postId, caption) =>
+                      setFeedItems((items) =>
+                        items.map((row) =>
+                          row.content.id === postId
+                            ? { ...row, content: { ...row.content, caption } }
+                            : row,
+                        ),
+                      )
+                    }
                   />
                 ))}
               </div>

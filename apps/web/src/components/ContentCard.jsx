@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
-import { Heart, DollarSign, Trash2, Bookmark } from 'lucide-react';
+import { Heart, DollarSign, Trash2, Bookmark, Pencil } from 'lucide-react';
 import TipModal from './TipModal.jsx';
 import AddToCollectionDialog from './AddToCollectionDialog.jsx';
 import { toast } from 'sonner';
@@ -22,7 +23,9 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
 import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
-const ContentCard = ({ content, creator, onDelete }) => {
+const CAPTION_MAX_LEN = 2000;
+
+const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
   const { currentUser, isAuthenticated, isModerator, isOwner } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
@@ -31,6 +34,14 @@ const ContentCard = ({ content, creator, onDelete }) => {
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [captionText, setCaptionText] = useState(content.caption ?? '');
+  const [captionEditOpen, setCaptionEditOpen] = useState(false);
+  const [captionDraft, setCaptionDraft] = useState('');
+  const [savingCaption, setSavingCaption] = useState(false);
+
+  useEffect(() => {
+    setCaptionText(content.caption ?? '');
+  }, [content.id, content.caption]);
 
   const postOwnerId = content.creator_id ?? creator?.id;
   const isPostOwner = !!(currentUser && postOwnerId && currentUser.id === postOwnerId);
@@ -46,6 +57,39 @@ const ContentCard = ({ content, creator, onDelete }) => {
   const openDeleteDialog = () => {
     setDeleteConfirm('');
     setDeleteOpen(true);
+  };
+
+  const openCaptionEdit = () => {
+    setCaptionDraft(captionText);
+    setCaptionEditOpen(true);
+  };
+
+  const handleSaveCaption = async () => {
+    if (!isPostOwner || !currentUser) return;
+    const trimmed = captionDraft.trim();
+    if (trimmed.length > CAPTION_MAX_LEN) {
+      toast.error(`Caption is too long (max ${CAPTION_MAX_LEN} characters)`);
+      return;
+    }
+    setSavingCaption(true);
+    try {
+      const value = trimmed.length > 0 ? trimmed : null;
+      const { error } = await supabase
+        .from('content')
+        .update({ caption: value })
+        .eq('id', content.id)
+        .eq('creator_id', currentUser.id);
+      if (error) throw error;
+      setCaptionText(value ?? '');
+      onCaptionChange?.(content.id, value);
+      toast.success('Caption updated');
+      setCaptionEditOpen(false);
+    } catch (err) {
+      console.error('Caption update failed:', err);
+      toast.error(err.message || 'Failed to update caption');
+    } finally {
+      setSavingCaption(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -186,8 +230,25 @@ const ContentCard = ({ content, creator, onDelete }) => {
             </div>
           )}
 
-          {content.caption && (
-            <p className="text-sm mb-3 line-clamp-3">{content.caption}</p>
+          {(captionText || isPostOwner) && (
+            <div className="mb-3 flex items-start gap-2">
+              <p className={`text-sm flex-1 min-w-0 ${captionText ? 'line-clamp-3' : 'text-muted-foreground italic'}`}>
+                {captionText || (isPostOwner ? 'No caption — add one' : '')}
+              </p>
+              {isPostOwner && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-8 w-8"
+                  onClick={openCaptionEdit}
+                  aria-label="Edit caption"
+                  title="Edit caption"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           )}
 
           <div className="flex items-center justify-between">
@@ -255,6 +316,35 @@ const ContentCard = ({ content, creator, onDelete }) => {
           contentId={content.id}
         />
       )}
+
+      <Dialog open={captionEditOpen} onOpenChange={(open) => { if (!savingCaption) setCaptionEditOpen(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit caption</DialogTitle>
+            <DialogDescription>
+              Update the text shown under your post. Leave empty to remove the caption.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={captionDraft}
+            onChange={(e) => setCaptionDraft(e.target.value)}
+            rows={4}
+            maxLength={CAPTION_MAX_LEN}
+            className="text-gray-900 placeholder:text-gray-500"
+            placeholder="Write a caption..."
+            disabled={savingCaption}
+          />
+          <p className="text-xs text-muted-foreground">{captionDraft.length}/{CAPTION_MAX_LEN}</p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCaptionEditOpen(false)} disabled={savingCaption}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCaption} disabled={savingCaption}>
+              {savingCaption ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <DialogContent className="max-w-md">
