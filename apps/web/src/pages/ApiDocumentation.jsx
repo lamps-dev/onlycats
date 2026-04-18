@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 const ApiDocumentation = () => {
   const [apiKey, setApiKey] = useState('');
-  const [testEndpoint, setTestEndpoint] = useState('/v1/photos');
+  const [testEndpoint, setTestEndpoint] = useState('/api/v1/photos');
   const [testResponse, setTestResponse] = useState(null);
   const [testLoading, setTestLoading] = useState(false);
 
@@ -374,8 +374,8 @@ const photo = await response.json();`}
                         onChange={(e) => setTestEndpoint(e.target.value)}
                         className="w-full px-3 py-2 border rounded-lg text-sm font-mono text-gray-900"
                       >
-                        <option value="/v1/photos">GET /api/v1/photos</option>
-                        <option value="/v1/photos/random">GET /api/v1/photos/random</option>
+                        <option value="/api/v1/photos">GET /api/v1/photos</option>
+                        <option value="/api/v1/photos/random">GET /api/v1/photos/random</option>
                       </select>
                     </div>
 
