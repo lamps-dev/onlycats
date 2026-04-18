@@ -21,7 +21,7 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
 
 const ContentCard = ({ content, creator, onDelete }) => {
-  const { currentUser, isAuthenticated, isModerator } = useAuth();
+  const { currentUser, isAuthenticated, isModerator, isOwner } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
   const [tipModalOpen, setTipModalOpen] = useState(false);
@@ -31,7 +31,7 @@ const ContentCard = ({ content, creator, onDelete }) => {
 
   const postOwnerId = content.creator_id ?? creator?.id;
   const isPostOwner = !!(currentUser && postOwnerId && currentUser.id === postOwnerId);
-  const canDelete = isPostOwner || isModerator;
+  const canDelete = isPostOwner || isModerator || isOwner;
   const isModerating = canDelete && !isPostOwner; // mod/owner deleting someone else's post
 
   const ownerDisplayName = creator?.display_name || currentUser?.user_metadata?.display_name || currentUser?.email?.split('@')[0] || '';

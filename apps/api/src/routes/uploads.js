@@ -72,7 +72,7 @@ const keyFromPublicUrl = (url) => {
 };
 
 // DELETE /uploads/content/:id — delete a post (row in `content`) and its R2 object.
-// Only the owner (content.creator_id === req.user.id) may delete.
+// Author can delete own post; moderator/owner can delete any post.
 router.delete('/content/:id', requireUser, async (req, res, next) => {
 	try {
 		const { id } = req.params;
@@ -92,7 +92,7 @@ router.delete('/content/:id', requireUser, async (req, res, next) => {
 		const isModOrOwner = role === ROLES.MODERATOR || role === ROLES.OWNER;
 
 		if (!isOwnPost && !isModOrOwner) {
-			return res.status(403).json({ error: 'You can only delete your own posts' });
+			return res.status(403).json({ error: 'Not allowed to delete this post' });
 		}
 
 		const objectKey = keyFromPublicUrl(row.file_url);
