@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +10,11 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import { Cat } from 'lucide-react';
 import { toast } from 'sonner';
+import { mapAuthError } from '@/lib/authErrors.js';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(() => location.state?.email || '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -24,12 +26,12 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      await login(email.trim().toLowerCase(), password);
       toast.success('Welcome back, cat lover!');
-      navigate('/discover');
+      navigate('/discover', { replace: true });
     } catch (error) {
       console.error('Login failed:', error);
-      toast.error('Login failed. This cat is being finicky with your credentials.');
+      toast.error(mapAuthError(error));
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,7 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import { Cat } from 'lucide-react';
 import { toast } from 'sonner';
+import { mapAuthError } from '@/lib/authErrors.js';
 
 const SignupPage = () => {
   const [name, setName] = useState('');
@@ -37,12 +38,26 @@ const SignupPage = () => {
     setLoading(true);
 
     try {
-      await signup(email, password, passwordConfirm, name);
-      toast.success('Account created! Welcome to the pride.');
-      navigate('/discover');
+      const data = await signup(email, password, passwordConfirm, name);
+      const normalizedEmail = email.trim().toLowerCase();
+
+      // When "Confirm email" is enabled in Supabase, there is no session until the user clicks the link.
+      if (data?.session) {
+        toast.success('Account created! Welcome to the pride.');
+        navigate('/discover', { replace: true });
+        return;
+      }
+
+      if (data?.user) {
+        toast.success('Check your email — open the confirmation link, then log in here.');
+        navigate('/login', { replace: true, state: { email: normalizedEmail } });
+        return;
+      }
+
+      toast.error('Could not create your account. Please try again.');
     } catch (error) {
       console.error('Signup failed:', error);
-      toast.error('Signup failed. This litter box is full. Try a different email.');
+      toast.error(mapAuthError(error));
     } finally {
       setLoading(false);
     }

@@ -113,6 +113,11 @@ export const AuthProvider = ({ children }) => {
 			if (!cancelled) setInitialLoading(false);
 		}, 3000);
 
+		// Restore session on first load (some environments miss the initial auth event).
+		supabase.auth.getSession().then(({ data: { session } }) => {
+			if (!cancelled) applySession(session);
+		});
+
 		const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
 			applySession(session);
 		});
@@ -125,16 +130,26 @@ export const AuthProvider = ({ children }) => {
 	}, [navigate]);
 
 	const login = useCallback(async (email, password) => {
-		const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
+		const { data, error } = await supabase.auth.signInWithPassword({
+			email: normalizedEmail,
+			password,
+		});
 		if (error) throw error;
 		return data;
 	}, []);
 
 	const signup = useCallback(async (email, password, _passwordConfirm, name) => {
+		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
+		const emailRedirectTo =
+			typeof window !== 'undefined' ? `${window.location.origin}/discover` : undefined;
 		const { data, error } = await supabase.auth.signUp({
-			email,
+			email: normalizedEmail,
 			password,
-			options: { data: { display_name: name } },
+			options: {
+				data: { display_name: name?.trim() || undefined },
+				emailRedirectTo,
+			},
 		});
 		if (error) throw error;
 		return data;
