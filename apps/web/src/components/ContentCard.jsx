@@ -15,7 +15,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
-import { Heart, DollarSign, Trash2, Bookmark, Pencil } from 'lucide-react';
+import { Heart, DollarSign, Trash2, Bookmark, Pencil, Users } from 'lucide-react';
 import TipModal from './TipModal.jsx';
 import AddToCollectionDialog from './AddToCollectionDialog.jsx';
 import { toast } from 'sonner';
@@ -38,10 +38,66 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
   const [captionEditOpen, setCaptionEditOpen] = useState(false);
   const [captionDraft, setCaptionDraft] = useState('');
   const [savingCaption, setSavingCaption] = useState(false);
+  const [likersOpen, setLikersOpen] = useState(false);
+  const [likersLoading, setLikersLoading] = useState(false);
+  const [likers, setLikers] = useState([]);
 
   useEffect(() => {
     setCaptionText(content.caption ?? '');
   }, [content.id, content.caption]);
+
+  useEffect(() => {
+    setLikeCount(content.like_count || 0);
+  }, [content.id, content.like_count]);
+
+  useEffect(() => {
+    if (!likersOpen) return;
+    let cancelled = false;
+    (async () => {
+      setLikersLoading(true);
+      try {
+        const { data: likeRows, error: likesErr } = await supabase
+          .from('likes')
+          .select('user_id, created_at')
+          .eq('content_id', content.id)
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (likesErr) throw likesErr;
+        const rows = likeRows ?? [];
+        const ids = [...new Set(rows.map((r) => r.user_id))];
+        if (ids.length === 0) {
+          if (!cancelled) setLikers([]);
+          return;
+        }
+        const { data: profs, error: profErr } = await supabase
+          .from('profiles')
+          .select('id, display_name, avatar_url, role')
+          .in('id', ids);
+        if (profErr) throw profErr;
+        const byId = new Map((profs ?? []).map((p) => [p.id, p]));
+        if (!cancelled) {
+          setLikers(
+            rows
+              .map((r) => {
+                const profile = byId.get(r.user_id);
+                if (!profile) return null;
+                return { profile, likedAt: r.created_at };
+              })
+              .filter(Boolean),
+          );
+        }
+      } catch (err) {
+        console.error('Failed to load likers:', err);
+        if (!cancelled) {
+          setLikers([]);
+          toast.error('Could not load who liked this post');
+        }
+      } finally {
+        if (!cancelled) setLikersLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [likersOpen, content.id, likeCount]);
 
   const postOwnerId = content.creator_id ?? creator?.id;
   const isPostOwner = !!(currentUser && postOwnerId && currentUser.id === postOwnerId);
@@ -252,14 +308,26 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
           )}
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Button
                 variant={isLiked ? 'default' : 'ghost'}
                 size="sm"
                 onClick={handleLike}
                 className="transition-all"
+                aria-label={isLiked ? 'Unlike' : 'Like'}
               >
-                <Heart className={`w-4 h-4 mr-1 ${isLiked ? 'fill-current' : ''}`} />
+                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="tabular-nums px-2 text-muted-foreground"
+                disabled={likeCount === 0}
+                onClick={() => likeCount > 0 && setLikersOpen(true)}
+                aria-label={likeCount === 0 ? 'No likes yet' : `See ${likeCount} likes`}
+                title={likeCount === 0 ? 'No likes yet' : 'See who liked this'}
+              >
                 {likeCount}
               </Button>
               <Button
@@ -316,6 +384,59 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
           contentId={content.id}
         />
       )}
+
+      <Dialog open={likersOpen} onOpenChange={setLikersOpen}>
+        <DialogContent className="max-w-md max-h-[min(28rem,70vh)] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Liked by
+            </DialogTitle>
+            <DialogDescription>
+              {likeCount === 0
+                ? 'No one has liked this post yet.'
+                : `${likeCount} ${likeCount === 1 ? 'person' : 'people'} liked this post.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 min-h-0 -mx-1 px-1">
+            {likersLoading ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+            ) : likers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">No likes to show.</p>
+            ) : (
+              <ul className="space-y-2">
+                {likers.map(({ profile, likedAt }) => (
+                  <li key={`${profile.id}-${likedAt}`}>
+                    <Link
+                      to={`/${profile.id}`}
+                      className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/80 transition-colors"
+                      onClick={() => setLikersOpen(false)}
+                    >
+                      <Avatar className="w-9 h-9 rounded-xl shrink-0">
+                        <AvatarImage src={profile.avatar_url} alt="" />
+                        <AvatarFallback className="rounded-xl bg-primary text-primary-foreground text-sm">
+                          {profile.display_name?.charAt(0) || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium text-sm truncate">{profile.display_name || 'Member'}</span>
+                          <StaffRoleBadge role={profile.role} className="shrink-0" />
+                        </div>
+                        {likedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(likedAt), { addSuffix: true })}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={captionEditOpen} onOpenChange={(open) => { if (!savingCaption) setCaptionEditOpen(open); }}>
         <DialogContent className="max-w-md">
