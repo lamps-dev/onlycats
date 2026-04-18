@@ -3,10 +3,10 @@ import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Button } from '@/components/ui/button';
-import { Cat, LogOut, Code } from 'lucide-react';
+import { Cat, LogOut, Shield } from 'lucide-react';
 
 const Header = () => {
-  const { isAuthenticated, logout, currentUser } = useAuth();
+  const { isAuthenticated, logout, currentUser, isOwner } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -65,6 +65,19 @@ const Header = () => {
                 >
                   Developer
                 </Link>
+                {isOwner && (
+                  <Link
+                    to="/admin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`text-sm font-medium transition-colors hover:text-primary inline-flex items-center gap-1 ${
+                      isActive('/admin') ? 'text-primary' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Admin
+                  </Link>
+                )}
               </>
             )}
             <Link

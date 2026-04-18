@@ -131,7 +131,14 @@ const FeedPage = () => {
             ) : (
               <div className="space-y-6">
                 {feedItems.map(({ content, creator }) => (
-                  <ContentCard key={content.id} content={content} creator={creator} />
+                  <ContentCard
+                    key={content.id}
+                    content={content}
+                    creator={creator}
+                    onDelete={(deletedId) =>
+                      setFeedItems((items) => items.filter((i) => i.content.id !== deletedId))
+                    }
+                  />
                 ))}
               </div>
             )}

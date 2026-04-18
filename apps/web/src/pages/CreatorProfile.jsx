@@ -8,9 +8,10 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
 import ContentUpload from '@/components/ContentUpload.jsx';
+import DeleteAccountDialog from '@/components/DeleteAccountDialog.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Users, UserPlus, UserMinus, Upload } from 'lucide-react';
+import { Users, UserPlus, UserMinus, Upload, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CreatorProfile = () => {
@@ -21,6 +22,7 @@ const CreatorProfile = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const isOwnProfile = !!(creator && currentUser && creator.id === currentUser.id);
 
@@ -188,10 +190,21 @@ const CreatorProfile = () => {
                 )}
 
                 {isOwnProfile && (
-                  <Button size="lg" onClick={() => setUploadModalOpen(true)}>
-                    <Upload className="w-5 h-5 mr-2" />
-                    Upload Content
-                  </Button>
+                  <>
+                    <Button size="lg" onClick={() => setUploadModalOpen(true)}>
+                      <Upload className="w-5 h-5 mr-2" />
+                      Upload Content
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={() => setDeleteAccountOpen(true)}
+                      className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="w-5 h-5 mr-2" />
+                      Delete account
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -207,7 +220,14 @@ const CreatorProfile = () => {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {content.map((item) => (
-                    <ContentCard key={item.id} content={item} creator={creator} />
+                    <ContentCard
+                      key={item.id}
+                      content={item}
+                      creator={creator}
+                      onDelete={(deletedId) =>
+                        setContent((items) => items.filter((i) => i.id !== deletedId))
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -227,6 +247,14 @@ const CreatorProfile = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {isOwnProfile && (
+        <DeleteAccountDialog
+          open={deleteAccountOpen}
+          onOpenChange={setDeleteAccountOpen}
+          accountName={creator?.display_name}
+        />
+      )}
 
       <Footer />
     </>

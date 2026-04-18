@@ -17,7 +17,7 @@ const loadProfile = async (userId) => {
 	if (!userId) return null;
 	const { data } = await supabase
 		.from('profiles')
-		.select('id, display_name, bio, avatar_url, follower_count')
+		.select('id, display_name, bio, avatar_url, follower_count, role')
 		.eq('id', userId)
 		.maybeSingle();
 	return data ?? null;
@@ -32,6 +32,7 @@ const mergeUserWithProfile = (user, profile) => {
 		avatar_url: profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null,
 		bio: profile?.bio ?? null,
 		follower_count: profile?.follower_count ?? 0,
+		role: profile?.role ?? 'user',
 	};
 };
 
@@ -117,6 +118,7 @@ export const AuthProvider = ({ children }) => {
 		setCurrentUser(mergeUserWithProfile(session?.user, profile));
 	}, []);
 
+	const role = currentUser?.role ?? 'user';
 	const value = useMemo(
 		() => ({
 			currentUser,
@@ -126,8 +128,11 @@ export const AuthProvider = ({ children }) => {
 			logout,
 			refreshProfile,
 			isAuthenticated: !!currentUser,
+			role,
+			isModerator: role === 'moderator' || role === 'owner',
+			isOwner: role === 'owner',
 		}),
-		[currentUser, login, signup, authWithDiscord, logout, refreshProfile],
+		[currentUser, login, signup, authWithDiscord, logout, refreshProfile, role],
 	);
 
 	if (initialLoading) return <LoadingScreen />;

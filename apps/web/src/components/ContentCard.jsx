@@ -2,19 +2,80 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import supabase from '@/lib/supabaseClient.js';
-import { Heart, DollarSign } from 'lucide-react';
+import apiServerClient from '@/lib/apiServerClient.js';
+import { Heart, DollarSign, Trash2 } from 'lucide-react';
 import TipModal from './TipModal.jsx';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
 
-const ContentCard = ({ content, creator }) => {
-  const { currentUser, isAuthenticated } = useAuth();
+const ContentCard = ({ content, creator, onDelete }) => {
+  const { currentUser, isAuthenticated, isModerator } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
   const [tipModalOpen, setTipModalOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const postOwnerId = content.creator_id ?? creator?.id;
+  const isPostOwner = !!(currentUser && postOwnerId && currentUser.id === postOwnerId);
+  const canDelete = isPostOwner || isModerator;
+  const isModerating = canDelete && !isPostOwner; // mod/owner deleting someone else's post
+
+  const ownerDisplayName = creator?.display_name || currentUser?.user_metadata?.display_name || currentUser?.email?.split('@')[0] || '';
+  const expectedConfirmation = isModerating
+    ? 'OnlyCats / moderate'
+    : `OnlyCats / ${ownerDisplayName}`;
+  const canConfirmDelete = deleteConfirm.trim() === expectedConfirmation && !deleting;
+
+  const openDeleteDialog = () => {
+    setDeleteConfirm('');
+    setDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!isOwner || !canConfirmDelete) return;
+
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not signed in');
+
+      const res = await apiServerClient.fetch(`/uploads/content/${content.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        let message = `Delete failed (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch (_) { /* ignore */ }
+        throw new Error(message);
+      }
+
+      toast.success('Post deleted');
+      setDeleteOpen(false);
+      onDelete?.(content.id);
+    } catch (err) {
+      console.error('Delete failed:', err);
+      toast.error(err.message || 'Failed to delete post. Try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !currentUser) {
@@ -138,6 +199,19 @@ const ContentCard = ({ content, creator }) => {
                 {content.tip_count || 0}
               </Button>
             </div>
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={openDeleteDialog}
+                disabled={deleting}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                aria-label={isModerating ? 'Remove post (moderation)' : 'Delete post'}
+                title={isModerating ? 'Remove post (moderation)' : 'Delete post'}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </Card>
@@ -148,6 +222,50 @@ const ContentCard = ({ content, creator }) => {
         creatorId={creatorId}
         creatorName={creatorName}
       />
+
+      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isModerating ? 'Remove this post (moderation)' : 'Delete this post?'}</DialogTitle>
+            <DialogDescription>
+              {isModerating
+                ? `You are removing a post by ${creator?.display_name || 'another user'} as a moderator. This permanently removes the post and its uploaded file. This action is logged.`
+                : 'This permanently removes the post and its uploaded file. This cannot be undone.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Type <code className="px-1 py-0.5 rounded bg-muted font-mono text-xs">{expectedConfirmation}</code> to confirm.
+            </p>
+            <Input
+              autoFocus
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={expectedConfirmation}
+              className="font-mono text-sm text-gray-900 placeholder:text-gray-500"
+              disabled={deleting}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={!canConfirmDelete}
+            >
+              {deleting ? (isModerating ? 'Removing...' : 'Deleting...') : (isModerating ? 'Remove post' : 'Delete post')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

@@ -13,6 +13,7 @@ import CreatorProfile from './pages/CreatorProfile.jsx';
 import FeedPage from './pages/FeedPage.jsx';
 import DeveloperDashboard from './pages/DeveloperDashboard.jsx';
 import ApiDocumentation from './pages/ApiDocumentation.jsx';
+import AdminPage from './pages/AdminPage.jsx';
 
 function App() {
   return (
@@ -33,6 +34,11 @@ function App() {
           <Route path="/developer" element={
             <ProtectedRoute>
               <DeveloperDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminPage />
             </ProtectedRoute>
           } />
           <Route path="/:creatorId" element={<CreatorProfile />} />
