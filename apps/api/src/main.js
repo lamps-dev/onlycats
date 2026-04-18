@@ -1,14 +1,13 @@
 import { createApp } from './app.js';
 import logger from './utils/logger.js';
-import { ensureOwner } from './utils/roles.js';
 
 const app = createApp();
 const port = Number(process.env.PORT) || 3001;
 
 const server = app.listen(port, () => {
 	logger.info(`API server listening on http://localhost:${port}`);
-	// Fire-and-forget owner sync so boot isn't blocked on Supabase.
-	ensureOwner().catch((err) => logger.error('ensureOwner failed:', err?.message || err));
+	// Owner self-heal runs per-request in requireUser (see utils/roles.js),
+	// because this process doesn't run on serverless. No boot hook needed.
 });
 
 const shutdown = (signal) => {

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient.js';
+import apiServerClient from '@/lib/apiServerClient.js';
 
 const AuthContext = createContext(null);
 
@@ -21,6 +22,23 @@ const loadProfile = async (userId) => {
 		.eq('id', userId)
 		.maybeSingle();
 	return data ?? null;
+};
+
+// Ask the API for our authoritative role. This also triggers server-side
+// owner self-heal (in requireUser), so the first call after the owner's first
+// Discord login is what actually promotes them. Returns null on failure.
+const fetchServerRole = async (accessToken) => {
+	if (!accessToken) return null;
+	try {
+		const res = await apiServerClient.fetch('/account/me', {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
+		if (!res.ok) return null;
+		const body = await res.json();
+		return body?.role ?? null;
+	} catch (_) {
+		return null;
+	}
 };
 
 const mergeUserWithProfile = (user, profile) => {
@@ -61,8 +79,18 @@ export const AuthProvider = ({ children }) => {
 
 			if (user && user.id !== lastProfileUserId) {
 				lastProfileUserId = user.id;
-				const profile = await loadProfile(user.id);
-				if (!cancelled) setCurrentUser(mergeUserWithProfile(user, profile));
+				const [profile, serverRole] = await Promise.all([
+					loadProfile(user.id),
+					fetchServerRole(session?.access_token),
+				]);
+				if (!cancelled) {
+					const merged = mergeUserWithProfile(user, profile);
+					// The server's role check runs owner self-heal; prefer it when
+					// available so the cached client cache reflects any promotion
+					// that just happened on the server during this request.
+					if (merged && serverRole) merged.role = serverRole;
+					setCurrentUser(merged);
+				}
 			} else if (!user) {
 				lastProfileUserId = null;
 			}
@@ -114,8 +142,13 @@ export const AuthProvider = ({ children }) => {
 
 	const refreshProfile = useCallback(async () => {
 		const { data: { session } } = await supabase.auth.getSession();
-		const profile = await loadProfile(session?.user?.id);
-		setCurrentUser(mergeUserWithProfile(session?.user, profile));
+		const [profile, serverRole] = await Promise.all([
+			loadProfile(session?.user?.id),
+			fetchServerRole(session?.access_token),
+		]);
+		const merged = mergeUserWithProfile(session?.user, profile);
+		if (merged && serverRole) merged.role = serverRole;
+		setCurrentUser(merged);
 	}, []);
 
 	const role = currentUser?.role ?? 'user';

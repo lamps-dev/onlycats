@@ -1,4 +1,5 @@
 import { supabase } from '../utils/supabaseClient.js';
+import { selfHealRoleFor } from '../utils/roles.js';
 
 export const requireUser = async (req, res, next) => {
 	const header = req.headers.authorization || '';
@@ -15,5 +16,14 @@ export const requireUser = async (req, res, next) => {
 
 	req.user = data.user;
 	req.accessToken = token;
+
+	// Self-heal the owner's role based on their Discord identity. Cached per-user
+	// for 60s (inside selfHealRoleFor), so after the first hit this becomes a
+	// cheap in-memory check. We await so downstream requireRole() sees the
+	// updated row.
+	try {
+		await selfHealRoleFor(data.user);
+	} catch (_) { /* already logged inside */ }
+
 	next();
 };

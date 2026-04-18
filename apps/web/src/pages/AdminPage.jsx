@@ -25,12 +25,18 @@ const roleBadgeClass = (role) => {
 };
 
 const AdminPage = () => {
-  const { isOwner, currentUser, isAuthenticated } = useAuth();
+  const { currentUser, isAuthenticated, refreshProfile } = useAuth();
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [actingOn, setActingOn] = useState(null); // user id currently being updated
+
+  // Server-authoritative role check. The cached client role may lag behind
+  // the DB after the owner self-heal runs on the server. We treat the answer
+  // from `/account/me` as the source of truth for route access.
+  const [serverRole, setServerRole] = useState(null); // null = loading, string = resolved
+  const [roleCheckError, setRoleCheckError] = useState(null);
 
   const load = useCallback(async (q = '') => {
     setLoading(true);
@@ -62,9 +68,44 @@ const AdminPage = () => {
     }
   }, []);
 
+  // Ask the API who we are. This triggers server-side owner self-heal, then
+  // returns our authoritative role. Runs once the auth session is available.
   useEffect(() => {
-    if (isOwner) load('');
-  }, [isOwner, load]);
+    let cancelled = false;
+    (async () => {
+      if (!isAuthenticated) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (!cancelled) setServerRole('user');
+          return;
+        }
+        const res = await apiServerClient.fetch('/account/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) {
+          throw new Error(`role check failed (${res.status})`);
+        }
+        const body = await res.json();
+        if (cancelled) return;
+        setServerRole(body.role || 'user');
+        // Sync client cache so the header shows the shield on this load.
+        if (body.role === 'owner' || body.role === 'moderator') {
+          try { await refreshProfile(); } catch (_) { /* non-fatal */ }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setRoleCheckError(err.message || 'Failed to verify role');
+          setServerRole('user');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, refreshProfile]);
+
+  useEffect(() => {
+    if (serverRole === 'owner') load('');
+  }, [serverRole, load]);
 
   const setRole = async (userId, role) => {
     setActingOn(userId);
@@ -102,7 +143,27 @@ const AdminPage = () => {
   // Guard: only owner may view this page. Redirect everyone else home.
   // (Server also enforces owner-only on every admin endpoint.)
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!isOwner) return <Navigate to="/" replace />;
+  if (serverRole === null) {
+    // Still verifying — show a brief loader rather than redirecting, otherwise
+    // the owner can't reach this page on a cold load because the client role
+    // starts as 'user' until the profile + server check complete.
+    return (
+      <>
+        <Header />
+        <main className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Verifying permissions...</p>
+            {roleCheckError && (
+              <p className="text-xs text-destructive mt-2">{roleCheckError}</p>
+            )}
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+  if (serverRole !== 'owner') return <Navigate to="/" replace />;
 
   const handleSearch = (e) => {
     e.preventDefault();
