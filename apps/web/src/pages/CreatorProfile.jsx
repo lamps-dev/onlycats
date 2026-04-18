@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,11 +8,16 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
 import ContentUpload from '@/components/ContentUpload.jsx';
-import DeleteAccountDialog from '@/components/DeleteAccountDialog.jsx';
+import CollectionsManager from '@/components/CollectionsManager.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Users, UserPlus, UserMinus, Upload, Trash2 } from 'lucide-react';
+import { Users, UserPlus, UserMinus, Upload, Settings, MapPin, Globe, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
+
+const SOCIAL_LABELS = {
+  twitter: 'Twitter', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube',
+  twitch: 'Twitch', github: 'GitHub', discord: 'Discord', website: 'Website', other: 'Link',
+};
 
 const CreatorProfile = () => {
   const { creatorId } = useParams();
@@ -22,7 +27,6 @@ const CreatorProfile = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const isOwnProfile = !!(creator && currentUser && creator.id === currentUser.id);
 
@@ -32,7 +36,7 @@ const CreatorProfile = () => {
       const [{ data: profile, error: profileErr }, { data: contentRows, error: contentErr }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, display_name, bio, avatar_url, follower_count')
+          .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links')
           .eq('id', creatorId)
           .maybeSingle(),
         supabase
@@ -171,12 +175,44 @@ const CreatorProfile = () => {
                 </p>
               )}
 
-              <div className="flex items-center justify-center gap-6 mb-6">
-                <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-4 text-muted-foreground">
+                <div className="flex items-center gap-2">
                   <Users className="w-5 h-5" />
                   <span className="font-medium">{creator.follower_count || 0} followers</span>
                 </div>
+                {(creator.location || creator.country) && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    <span>{[creator.location, creator.country].filter(Boolean).join(', ')}</span>
+                  </div>
+                )}
               </div>
+
+              {creator.about_me && (
+                <div className="max-w-2xl mx-auto mb-6 text-left bg-card border rounded-xl p-4">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <Globe className="w-4 h-4" /> About me
+                  </h3>
+                  <p className="text-sm whitespace-pre-wrap">{creator.about_me}</p>
+                </div>
+              )}
+
+              {Array.isArray(creator.social_links) && creator.social_links.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  {creator.social_links.map((s, i) => (
+                    <a
+                      key={i}
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border bg-card hover:bg-muted transition-colors"
+                    >
+                      <LinkIcon className="w-3.5 h-3.5" />
+                      {SOCIAL_LABELS[s.platform] || 'Link'}
+                    </a>
+                  ))}
+                </div>
+              )}
 
               <div className="flex items-center justify-center gap-3">
                 {!isOwnProfile && isAuthenticated && (
@@ -195,14 +231,8 @@ const CreatorProfile = () => {
                       <Upload className="w-5 h-5 mr-2" />
                       Upload Content
                     </Button>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      onClick={() => setDeleteAccountOpen(true)}
-                      className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="w-5 h-5 mr-2" />
-                      Delete account
+                    <Button size="lg" variant="outline" asChild>
+                      <Link to="/settings"><Settings className="w-5 h-5 mr-2" />Settings</Link>
                     </Button>
                   </>
                 )}
@@ -232,6 +262,11 @@ const CreatorProfile = () => {
                 </div>
               )}
             </div>
+
+            <div className="mt-12">
+              <h2 className="text-2xl font-bold mb-6">Collections</h2>
+              <CollectionsManager userId={creator.id} editable={isOwnProfile} />
+            </div>
           </div>
         </div>
       </main>
@@ -247,14 +282,6 @@ const CreatorProfile = () => {
           />
         </DialogContent>
       </Dialog>
-
-      {isOwnProfile && (
-        <DeleteAccountDialog
-          open={deleteAccountOpen}
-          onOpenChange={setDeleteAccountOpen}
-          accountName={creator?.display_name}
-        />
-      )}
 
       <Footer />
     </>

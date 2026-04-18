@@ -2,11 +2,13 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.jsx';
+import { useTheme } from '@/contexts/ThemeContext.jsx';
 import { Button } from '@/components/ui/button';
-import { Cat, LogOut, Shield } from 'lucide-react';
+import { Cat, LogOut, Shield, Settings, Sun, Moon } from 'lucide-react';
 
 const Header = () => {
   const { isAuthenticated, logout, currentUser, isOwner } = useAuth();
+  const { resolved, toggle } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -91,6 +93,15 @@ const Header = () => {
           </nav>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              aria-label={resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={resolved === 'dark' ? 'Light mode' : 'Dark mode'}
+            >
+              {resolved === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
             {!isAuthenticated ? (
               <>
                 <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
@@ -105,6 +116,15 @@ const Header = () => {
                 <span className="text-sm text-muted-foreground hidden sm:inline">
                   {currentUser?.display_name || currentUser?.email}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate('/settings')}
+                  aria-label="Settings"
+                  title="Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout

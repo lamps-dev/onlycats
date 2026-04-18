@@ -2,6 +2,7 @@
 import React from 'react';
 import { Route, Routes, BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext.jsx';
+import { ThemeProvider } from '@/contexts/ThemeContext.jsx';
 import { Toaster } from '@/components/ui/sonner';
 import ScrollToTop from './components/ScrollToTop.jsx';
 import ProtectedRoute from '@/components/ProtectedRoute.jsx';
@@ -14,37 +15,45 @@ import FeedPage from './pages/FeedPage.jsx';
 import DeveloperDashboard from './pages/DeveloperDashboard.jsx';
 import ApiDocumentation from './pages/ApiDocumentation.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
 
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/discover" element={<DiscoveryPage />} />
-          <Route path="/api-docs" element={<ApiDocumentation />} />
-          <Route path="/feed" element={
-            <ProtectedRoute>
-              <FeedPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/developer" element={
-            <ProtectedRoute>
-              <DeveloperDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin" element={
-            <ProtectedRoute>
-              <AdminPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/:creatorId" element={<CreatorProfile />} />
-        </Routes>
-        <Toaster />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ScrollToTop />
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/discover" element={<DiscoveryPage />} />
+            <Route path="/api-docs" element={<ApiDocumentation />} />
+            <Route path="/feed" element={
+              <ProtectedRoute>
+                <FeedPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/developer" element={
+              <ProtectedRoute>
+                <DeveloperDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/:creatorId" element={<CreatorProfile />} />
+          </Routes>
+          <Toaster />
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

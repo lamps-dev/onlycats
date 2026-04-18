@@ -18,7 +18,7 @@ const loadProfile = async (userId) => {
 	if (!userId) return null;
 	const { data } = await supabase
 		.from('profiles')
-		.select('id, display_name, bio, avatar_url, follower_count, role')
+		.select('id, display_name, bio, about_me, avatar_url, follower_count, role, country, location, social_links, notification_prefs')
 		.eq('id', userId)
 		.maybeSingle();
 	return data ?? null;
@@ -49,6 +49,11 @@ const mergeUserWithProfile = (user, profile) => {
 		display_name: profile?.display_name ?? user.user_metadata?.display_name ?? user.email,
 		avatar_url: profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null,
 		bio: profile?.bio ?? null,
+		about_me: profile?.about_me ?? null,
+		country: profile?.country ?? null,
+		location: profile?.location ?? null,
+		social_links: Array.isArray(profile?.social_links) ? profile.social_links : [],
+		notification_prefs: profile?.notification_prefs ?? { tips: true, follows: true, likes: false, email: false },
 		follower_count: profile?.follower_count ?? 0,
 		role: profile?.role ?? 'user',
 	};

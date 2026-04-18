@@ -14,8 +14,9 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
-import { Heart, DollarSign, Trash2 } from 'lucide-react';
+import { Heart, DollarSign, Trash2, Bookmark } from 'lucide-react';
 import TipModal from './TipModal.jsx';
+import AddToCollectionDialog from './AddToCollectionDialog.jsx';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
@@ -26,6 +27,7 @@ const ContentCard = ({ content, creator, onDelete }) => {
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [collectionOpen, setCollectionOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
 
@@ -203,19 +205,32 @@ const ContentCard = ({ content, creator, onDelete }) => {
                 {content.tip_count || 0}
               </Button>
             </div>
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={openDeleteDialog}
-                disabled={deleting}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                aria-label={isModerating ? 'Remove post (moderation)' : 'Delete post'}
-                title={isModerating ? 'Remove post (moderation)' : 'Delete post'}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {isPostOwner && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCollectionOpen(true)}
+                  aria-label="Save to collection"
+                  title="Save to collection"
+                >
+                  <Bookmark className="w-4 h-4" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={openDeleteDialog}
+                  disabled={deleting}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  aria-label={isModerating ? 'Remove post (moderation)' : 'Delete post'}
+                  title={isModerating ? 'Remove post (moderation)' : 'Delete post'}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </Card>
@@ -226,6 +241,14 @@ const ContentCard = ({ content, creator, onDelete }) => {
         creatorId={creatorId}
         creatorName={creatorName}
       />
+
+      {isPostOwner && (
+        <AddToCollectionDialog
+          open={collectionOpen}
+          onOpenChange={setCollectionOpen}
+          contentId={content.id}
+        />
+      )}
 
       <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <DialogContent className="max-w-md">
