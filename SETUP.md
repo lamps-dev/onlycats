@@ -1,10 +1,11 @@
-# Setup Guide — GitHub + Vercel + Free DB Hosting
+# Setup Guide — GitHub + Supabase + Vercel
 
-This repo is a monorepo with three apps:
+This repo is a monorepo with two apps:
 
 - `apps/web` — React + Vite frontend (deploys to Vercel as a static SPA)
 - `apps/api` — Express API (deploys to Vercel as a serverless function)
-- `apps/pocketbase` — local PocketBase server (does **not** deploy to Vercel; use a free host, see below)
+
+The database, auth, storage, and Discord OAuth all live on **Supabase** (free tier).
 
 ---
 
@@ -25,29 +26,50 @@ git remote add origin https://github.com/<you>/my-app.git
 git push -u origin main
 ```
 
-The included `.gitignore` keeps `node_modules/`, `pb_data/`, `dist/`, and `.env` out of the repo.
+The included `.gitignore` keeps `node_modules/`, `dist/`, and `.env` out of the repo.
 
 ---
 
-## 2. Free database hosting — use PocketHost
+## 2. Create the Supabase project
 
-**Recommended: [PocketHost](https://pockethost.io)** — the simplest free option for this app because it runs the exact same PocketBase the app already uses. Zero code changes beyond an env var.
+1. Sign up at [supabase.com](https://supabase.com) (free tier: 500 MB DB, 1 GB storage, 50k MAU).
+2. **New Project** → pick a region close to your users, set a strong DB password.
+3. Wait ~2 minutes for provisioning.
 
-1. Sign up at pockethost.io (free tier: 1 instance, 1 GB storage).
-2. Click **New Instance** → pick a subdomain, e.g. `your-app.pockethost.io`.
-3. Open `https://your-app.pockethost.io/_/` and create an admin account — save the email/password.
-4. Import your local schema:
-   - Locally run `cd apps/pocketbase && ./pocketbase serve` (or `pocketbase.exe` on Windows).
-   - In the local admin UI (`http://127.0.0.1:8090/_/`), go to **Settings → Export collections**, download the JSON.
-   - In the PocketHost admin UI, **Settings → Import collections**, upload the JSON.
+### 2a. Apply the schema
 
-Alternatives if you outgrow PocketHost:
+1. In the Supabase Dashboard, open **SQL Editor → New query**.
+2. Paste the entire contents of [`supabase/migrations/0001_initial_schema.sql`](./supabase/migrations/0001_initial_schema.sql).
+3. Click **Run**. This creates all tables, RLS policies, counter triggers, and the auto-provision-profile trigger.
 
-| Option | Why | Downside |
-|---|---|---|
-| **Supabase** free | Postgres + auth + storage, great Vercel integration | Requires rewriting PocketBase calls |
-| **Neon** free | Serverless Postgres, generous free tier | DB only — no auth/storage included |
-| **Fly.io** / **Railway** | Host your own PocketBase binary | Both now have limited free tiers; pay ~$5/mo |
+(Alternative: install the Supabase CLI and run `supabase db push` from the repo root.)
+
+### 2b. Create the storage buckets
+
+In the Dashboard, open **Storage → New bucket** and create two **public** buckets:
+
+- `avatars` — for profile avatars
+- `content` — for creator content (images + videos)
+
+The SQL migration already created storage policies that only let users write to a folder prefixed with their own user id, so avatars/content can't be overwritten by other users.
+
+### 2c. Enable Discord OAuth (optional)
+
+1. Create a Discord app at [discord.com/developers/applications](https://discord.com/developers/applications).
+2. Under **OAuth2 → General**, copy the **Client ID** and **Client Secret**.
+3. Add redirect: `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
+4. In Supabase, **Authentication → Providers → Discord** → toggle on, paste client id/secret.
+5. Also add your site URLs under **Authentication → URL Configuration → Redirect URLs**:
+   - `http://localhost:3000/**` (dev)
+   - `https://your-vercel-url.vercel.app/**` (prod)
+
+### 2d. Grab your keys
+
+From **Project Settings → API**:
+
+- **Project URL** → `VITE_SUPABASE_URL` / `SUPABASE_URL`
+- **anon (publishable) key** → `VITE_SUPABASE_ANON_KEY` (safe for the browser)
+- **service_role key** → `SUPABASE_SERVICE_ROLE_KEY` (**server-only — never commit, never ship to the client**)
 
 ---
 
@@ -57,8 +79,9 @@ Alternatives if you outgrow PocketHost:
 2. **Root Directory:** `apps/web`
 3. Framework preset auto-detects as **Vite** (confirmed by `apps/web/vercel.json`).
 4. Add environment variables:
-   - `VITE_POCKETBASE_URL` = `https://your-app.pockethost.io`
-   - `VITE_API_URL` = (leave empty for now — fill in after step 4 deploys the API)
+   - `VITE_SUPABASE_URL` = `https://YOUR-PROJECT.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY` = your anon key
+   - `VITE_API_URL` = (leave empty — fill in after step 4 deploys the API)
 5. Click **Deploy**.
 
 Subsequent pushes to `main` auto-deploy. PRs get preview URLs automatically.
@@ -73,9 +96,8 @@ Create a **second** Vercel project from the same repo:
 2. **Root Directory:** `apps/api`
 3. Framework preset: **Other** (configured by `apps/api/vercel.json`).
 4. Add environment variables:
-   - `POCKETBASE_URL` = `https://your-app.pockethost.io`
-   - `PB_SUPERUSER_EMAIL` = your PocketHost admin email
-   - `PB_SUPERUSER_PASSWORD` = your PocketHost admin password
+   - `SUPABASE_URL` = `https://YOUR-PROJECT.supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY` = your service role key
    - `CORS_ORIGIN` = your frontend URL (e.g. `https://my-app.vercel.app`)
    - `API_KEY_RATE_LIMIT` = `100` (optional)
 5. Click **Deploy**. Note the URL, e.g. `https://my-app-api.vercel.app`.
@@ -87,15 +109,17 @@ Create a **second** Vercel project from the same repo:
 
 ```bash
 # one-time
-cp apps/api/.env.example apps/api/.env    # fill in values
-cp apps/web/.env.example apps/web/.env    # usually leave empty for local
+cp apps/api/.env.example apps/api/.env    # fill in SUPABASE_URL + service role key
+cp apps/web/.env.example apps/web/.env    # fill in VITE_SUPABASE_URL + anon key
 npm install
 
 # run everything
 npm run dev
 ```
 
-This runs web (`:3000`), api (`:3001`), and the local PocketBase (`:8090`) in parallel.
+This runs web (`:3000`) and api (`:3001`) in parallel. Both talk to your remote Supabase project — there's no separate local DB to boot.
+
+Want a fully local Supabase? Install the [Supabase CLI](https://supabase.com/docs/guides/local-development) and run `supabase start`, then point your `.env` files at `http://127.0.0.1:54321` and the CLI-printed keys.
 
 ---
 
@@ -127,7 +151,8 @@ jobs:
 
 ## Gotchas
 
-- **PocketBase can't run on Vercel.** Vercel functions are stateless and ephemeral; PocketBase needs persistent disk. That's why step 2 uses PocketHost.
-- **`apps/pocketbase/pb_data/` is gitignored.** Your local dev data stays local. Production data lives on PocketHost.
+- **`SUPABASE_SERVICE_ROLE_KEY` bypasses RLS.** Keep it server-side only — never in `VITE_*` variables, never committed. If leaked, rotate immediately in **Project Settings → API**.
+- **Row Level Security is on for every table.** If a query mysteriously returns no rows, it's almost always a missing or mismatched policy — not a bug in the query.
 - **CORS.** In prod, set `CORS_ORIGIN` on the API to the exact frontend URL — `*` won't work when `credentials: true`.
-- **Custom domains.** Once live, add them in Vercel project settings; update `CORS_ORIGIN` and `VITE_POCKETBASE_URL`/`VITE_API_URL` to match.
+- **Storage bucket paths.** The storage policies require file paths to start with `<user-id>/...`. `apps/web/src/components/ContentUpload.jsx` already does this; keep the convention if you add new upload flows.
+- **Custom domains.** Once live, add them in Vercel project settings; update `CORS_ORIGIN`, your Supabase **Redirect URLs** list, and the Discord OAuth redirect URL to match.

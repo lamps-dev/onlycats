@@ -9,13 +9,13 @@
 		"lint": "eslint . --quiet"
 	},
 	"dependencies": {
+		"@supabase/supabase-js": "^2.46.1",
 		"cors": "^2.8.5",
 		"dotenv": "^16.4.7",
 		"express": "^5.0.1",
 		"express-rate-limit": "^8.3.1",
 		"helmet": "^8.0.0",
-		"morgan": "^1.10.0",
-		"pocketbase": "^0.26.8"
+		"morgan": "^1.10.0"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",

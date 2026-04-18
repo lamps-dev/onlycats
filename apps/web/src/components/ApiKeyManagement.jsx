@@ -1,56 +1,61 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
+import { useAuth } from '@/contexts/AuthContext.jsx';
 import { toast } from 'sonner';
 import { Copy, Key, AlertTriangle } from 'lucide-react';
 
+const generateApiKey = () => {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let key = 'oc_';
+  for (const byte of bytes) key += chars[byte % chars.length];
+  return key;
+};
+
 const ApiKeyManagement = ({ onKeyCreated }) => {
+  const { currentUser } = useAuth();
   const [keyName, setKeyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [newKey, setNewKey] = useState(null);
   const [showKeyModal, setShowKeyModal] = useState(false);
 
-  const generateApiKey = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let key = 'oc_';
-    for (let i = 0; i < 32; i++) {
-      key += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return key;
-  };
-
   const handleCreateKey = async (e) => {
     e.preventDefault();
-    
+
     if (!keyName.trim()) {
       toast.error('Please enter a name for your API key');
+      return;
+    }
+    if (!currentUser) {
+      toast.error('You must be logged in to create API keys');
       return;
     }
 
     setLoading(true);
     try {
       const apiKey = generateApiKey();
-      
-      await pb.collection('api_keys').create({
-        key: apiKey,
-        userId: pb.authStore.model.id,
-        name: keyName,
-        revoked: false,
-      }, { $autoCancel: false });
+
+      const { error } = await supabase
+        .from('api_keys')
+        .insert({
+          key: apiKey,
+          user_id: currentUser.id,
+          name: keyName,
+          revoked: false,
+        });
+      if (error) throw error;
 
       setNewKey(apiKey);
       setShowKeyModal(true);
       setKeyName('');
-      
-      if (onKeyCreated) {
-        onKeyCreated();
-      }
-    } catch (error) {
-      console.error('Failed to create API key:', error);
+      onKeyCreated?.();
+    } catch (err) {
+      console.error('Failed to create API key:', err);
       toast.error('Failed to create API key');
     } finally {
       setLoading(false);
@@ -61,7 +66,7 @@ const ApiKeyManagement = ({ onKeyCreated }) => {
     try {
       await navigator.clipboard.writeText(text);
       toast.success('API key copied to clipboard');
-    } catch (error) {
+    } catch {
       toast.error('Failed to copy to clipboard');
     }
   };
@@ -120,7 +125,7 @@ const ApiKeyManagement = ({ onKeyCreated }) => {
               <div className="text-sm">
                 <p className="font-medium text-destructive mb-1">Important Security Notice</p>
                 <p className="text-muted-foreground">
-                  This is the only time you will see this API key. Copy it now and store it securely. 
+                  This is the only time you will see this API key. Copy it now and store it securely.
                   If you lose it, you will need to generate a new one.
                 </p>
               </div>
@@ -135,11 +140,7 @@ const ApiKeyManagement = ({ onKeyCreated }) => {
                   readOnly
                   className="font-mono text-sm text-gray-900"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => copyToClipboard(newKey)}
-                >
+                <Button type="button" variant="outline" onClick={() => copyToClipboard(newKey)}>
                   <Copy className="w-4 h-4" />
                 </Button>
               </div>

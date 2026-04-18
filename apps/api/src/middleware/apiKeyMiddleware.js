@@ -1,4 +1,4 @@
-import pb from '../utils/pocketbaseClient.js';
+import supabase from '../utils/supabaseClient.js';
 import logger from '../utils/logger.js';
 import { HttpError } from './error.js';
 
@@ -41,12 +41,18 @@ export const apiKeyMiddleware = async (req, res, next) => {
 		const apiKey = authHeader.slice(7).trim();
 		if (!apiKey) throw new HttpError(401, 'Missing API key', 'UNAUTHORIZED');
 
-		let keyRecord;
-		try {
-			keyRecord = await pb.collection('api_keys').getFirstListItem(
-				pb.filter('key = {:key} && revoked = false', { key: apiKey }),
-			);
-		} catch {
+		const { data: keyRecord, error } = await supabase
+			.from('api_keys')
+			.select('id, user_id, revoked')
+			.eq('key', apiKey)
+			.eq('revoked', false)
+			.maybeSingle();
+
+		if (error) {
+			logger.error('api_keys lookup failed:', error.message);
+			throw new HttpError(500, 'Internal error', 'INTERNAL');
+		}
+		if (!keyRecord) {
 			throw new HttpError(401, 'Invalid or revoked API key', 'INVALID_KEY');
 		}
 
@@ -60,9 +66,13 @@ export const apiKeyMiddleware = async (req, res, next) => {
 			throw new HttpError(429, 'Rate limit exceeded', 'RATE_LIMITED');
 		}
 
-		pb.collection('api_keys')
-			.update(keyRecord.id, { last_used: new Date().toISOString() })
-			.catch((err) => logger.warn('Failed to update api_keys.last_used:', err.message));
+		supabase
+			.from('api_keys')
+			.update({ last_used: new Date().toISOString() })
+			.eq('id', keyRecord.id)
+			.then(({ error: updateErr }) => {
+				if (updateErr) logger.warn('Failed to update api_keys.last_used:', updateErr.message);
+			});
 
 		req.apiKey = keyRecord;
 		next();

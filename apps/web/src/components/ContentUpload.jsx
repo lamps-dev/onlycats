@@ -1,26 +1,26 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
+import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Upload, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
 const ContentUpload = ({ creatorId, onUploadSuccess }) => {
+  const { currentUser } = useAuth();
   const [file, setFile] = useState(null);
   const [caption, setCaption] = useState('');
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB in bytes
-
   const handleFileChange = (e) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    // Validate file size
     if (selectedFile.size > MAX_FILE_SIZE) {
       toast.error('File size exceeds 20MB limit. This cat is too chonky!');
       return;
@@ -28,63 +28,64 @@ const ContentUpload = ({ creatorId, onUploadSuccess }) => {
 
     setFile(selectedFile);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result);
-    };
+    reader.onloadend = () => setPreview(reader.result);
     reader.readAsDataURL(selectedFile);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!file) {
       toast.error('Please select a cat photo or video to upload');
       return;
     }
-
     if (file.size > MAX_FILE_SIZE) {
       toast.error('File size exceeds 20MB limit');
+      return;
+    }
+    if (!currentUser || currentUser.id !== creatorId) {
+      toast.error('You can only upload to your own profile');
       return;
     }
 
     setLoading(true);
     setUploadProgress(0);
 
+    const progressInterval = setInterval(() => {
+      setUploadProgress((p) => (p >= 90 ? 90 : p + 10));
+    }, 100);
+
     try {
-      const formData = new FormData();
-      formData.append('creatorId', creatorId);
-      formData.append('file', file);
-      formData.append('caption', caption);
-      formData.append('likeCount', 0);
-      formData.append('tipCount', 0);
+      const ext = file.name.split('.').pop();
+      const path = `${currentUser.id}/${crypto.randomUUID()}.${ext}`;
 
-      // Simulate progress (PocketBase doesn't provide real upload progress)
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
+      const { error: uploadErr } = await supabase.storage
+        .from('content')
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw uploadErr;
+
+      const { data: { publicUrl } } = supabase.storage.from('content').getPublicUrl(path);
+
+      const { error: insertErr } = await supabase
+        .from('content')
+        .insert({
+          creator_id: creatorId,
+          file_url: publicUrl,
+          caption: caption || null,
         });
-      }, 100);
-
-      await pb.collection('content').create(formData, { $autoCancel: false });
+      if (insertErr) throw insertErr;
 
       clearInterval(progressInterval);
       setUploadProgress(100);
-
       toast.success('Content uploaded successfully! Your cat is now famous.');
       setFile(null);
       setCaption('');
       setPreview(null);
       setUploadProgress(0);
-      
-      if (onUploadSuccess) {
-        onUploadSuccess();
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
+      onUploadSuccess?.();
+    } catch (err) {
+      clearInterval(progressInterval);
+      console.error('Upload failed:', err);
       toast.error('Upload failed. This cat is camera shy.');
       setUploadProgress(0);
     } finally {
@@ -103,13 +104,13 @@ const ContentUpload = ({ creatorId, onUploadSuccess }) => {
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   };
 
   return (
     <Card className="p-6">
       <h3 className="font-semibold text-lg mb-4">Upload Cat Content</h3>
-      
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           {!preview ? (
@@ -135,17 +136,9 @@ const ContentUpload = ({ creatorId, onUploadSuccess }) => {
               <div className="relative">
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                   {file?.type?.startsWith('video/') ? (
-                    <video
-                      src={preview}
-                      controls
-                      className="w-full h-full object-cover"
-                    />
+                    <video src={preview} controls className="w-full h-full object-cover" />
                   ) : (
-                    <img
-                      src={preview}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={preview} alt="Preview" className="w-full h-full object-cover" />
                   )}
                 </div>
                 <Button

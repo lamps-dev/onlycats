@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
 
 const AuthContext = createContext(null);
 
@@ -13,39 +12,89 @@ const LoadingScreen = () => (
 	</div>
 );
 
+const loadProfile = async (userId) => {
+	if (!userId) return null;
+	const { data } = await supabase
+		.from('profiles')
+		.select('id, display_name, bio, avatar_url, follower_count')
+		.eq('id', userId)
+		.maybeSingle();
+	return data ?? null;
+};
+
+const mergeUserWithProfile = (user, profile) => {
+	if (!user) return null;
+	return {
+		id: user.id,
+		email: user.email,
+		display_name: profile?.display_name ?? user.user_metadata?.display_name ?? user.email,
+		avatar_url: profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null,
+		bio: profile?.bio ?? null,
+		follower_count: profile?.follower_count ?? 0,
+	};
+};
+
 export const AuthProvider = ({ children }) => {
-	const navigate = useNavigate();
-	const [currentUser, setCurrentUser] = useState(() =>
-		pb.authStore.isValid ? pb.authStore.model : null,
-	);
+	const [currentUser, setCurrentUser] = useState(null);
 	const [initialLoading, setInitialLoading] = useState(true);
 
 	useEffect(() => {
-		const unsubscribe = pb.authStore.onChange((_token, model) => {
-			setCurrentUser(model ?? null);
+		let cancelled = false;
+
+		const hydrate = async () => {
+			const { data: { session } } = await supabase.auth.getSession();
+			const profile = await loadProfile(session?.user?.id);
+			if (!cancelled) {
+				setCurrentUser(mergeUserWithProfile(session?.user, profile));
+				setInitialLoading(false);
+			}
+		};
+		hydrate();
+
+		const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+			const profile = await loadProfile(session?.user?.id);
+			if (!cancelled) setCurrentUser(mergeUserWithProfile(session?.user, profile));
 		});
-		setInitialLoading(false);
-		return () => unsubscribe();
+
+		return () => {
+			cancelled = true;
+			subscription.unsubscribe();
+		};
 	}, []);
 
 	const login = useCallback(async (email, password) => {
-		const authData = await pb.collection('users').authWithPassword(email, password);
-		return authData;
+		const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+		if (error) throw error;
+		return data;
 	}, []);
 
-	const signup = useCallback(async (email, password, passwordConfirm, name) => {
-		await pb.collection('users').create({ email, password, passwordConfirm, name });
-		return pb.collection('users').authWithPassword(email, password);
+	const signup = useCallback(async (email, password, _passwordConfirm, name) => {
+		const { data, error } = await supabase.auth.signUp({
+			email,
+			password,
+			options: { data: { display_name: name } },
+		});
+		if (error) throw error;
+		return data;
 	}, []);
 
 	const authWithDiscord = useCallback(async () => {
-		const authData = await pb.collection('users').authWithOAuth2({ provider: 'discord' });
-		navigate('/discover');
-		return authData;
-	}, [navigate]);
+		const { data, error } = await supabase.auth.signInWithOAuth({
+			provider: 'discord',
+			options: { redirectTo: `${window.location.origin}/discover` },
+		});
+		if (error) throw error;
+		return data;
+	}, []);
 
-	const logout = useCallback(() => {
-		pb.authStore.clear();
+	const logout = useCallback(async () => {
+		await supabase.auth.signOut();
+	}, []);
+
+	const refreshProfile = useCallback(async () => {
+		const { data: { session } } = await supabase.auth.getSession();
+		const profile = await loadProfile(session?.user?.id);
+		setCurrentUser(mergeUserWithProfile(session?.user, profile));
 	}, []);
 
 	const value = useMemo(
@@ -55,9 +104,10 @@ export const AuthProvider = ({ children }) => {
 			signup,
 			authWithDiscord,
 			logout,
+			refreshProfile,
 			isAuthenticated: !!currentUser,
 		}),
-		[currentUser, login, signup, authWithDiscord, logout],
+		[currentUser, login, signup, authWithDiscord, logout, refreshProfile],
 	);
 
 	if (initialLoading) return <LoadingScreen />;

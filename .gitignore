@@ -28,10 +28,9 @@ Thumbs.db
 .vscode/
 .idea/
 
-# PocketBase runtime data (do NOT commit — contains user data)
-apps/pocketbase/pb_data/
-apps/pocketbase/pocketbase
-apps/pocketbase/pocketbase.exe
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
 
 # Horizons export artifact
 app.tar.gz

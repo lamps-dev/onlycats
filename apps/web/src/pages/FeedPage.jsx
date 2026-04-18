@@ -1,11 +1,10 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Heart, RefreshCw, AlertCircle } from 'lucide-react';
 
@@ -16,77 +15,50 @@ const FeedPage = () => {
   const [error, setError] = useState(null);
   const autoRefreshInterval = useRef(null);
 
-  useEffect(() => {
-    fetchFeed();
-
-    // Auto-refresh every 30 seconds
-    autoRefreshInterval.current = setInterval(() => {
-      fetchFeed(true);
-    }, 30000);
-
-    return () => {
-      if (autoRefreshInterval.current) {
-        clearInterval(autoRefreshInterval.current);
-      }
-    };
-  }, []);
-
-  const fetchFeed = async (silent = false) => {
+  const fetchFeed = useCallback(async (silent = false) => {
+    if (!currentUser) return;
     if (!silent) {
       setLoading(true);
       setError(null);
     }
 
     try {
-      const follows = await pb.collection('followers').getFullList({
-        filter: `userId="${currentUser.id}"`,
-        $autoCancel: false,
-      });
+      const { data: follows, error: followsErr } = await supabase
+        .from('followers')
+        .select('creator_id')
+        .eq('user_id', currentUser.id);
+      if (followsErr) throw followsErr;
 
-      const followedCreatorIds = follows.map(f => f.creatorId);
-
-      if (followedCreatorIds.length === 0) {
+      const creatorIds = (follows ?? []).map((f) => f.creator_id);
+      if (creatorIds.length === 0) {
         setFeedItems([]);
         setLoading(false);
         return;
       }
 
-      const filterStr = followedCreatorIds.map(id => `creatorId="${id}"`).join(' || ');
+      const { data: content, error: contentErr } = await supabase
+        .from('content')
+        .select('id, caption, file_url, like_count, tip_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url)')
+        .in('creator_id', creatorIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (contentErr) throw contentErr;
 
-      const contentRecords = await pb.collection('content').getList(1, 50, {
-        filter: filterStr,
-        sort: '-created',
-        $autoCancel: false,
-      });
-
-      const creatorsMap = {};
-      for (const creatorId of followedCreatorIds) {
-        try {
-          const creator = await pb.collection('creators').getOne(creatorId, { $autoCancel: false });
-          creatorsMap[creatorId] = creator;
-        } catch (err) {
-          console.error('Failed to fetch creator:', err);
-        }
-      }
-
-      const itemsWithCreators = contentRecords.items.map(item => ({
-        content: item,
-        creator: creatorsMap[item.creatorId],
-      }));
-
-      setFeedItems(itemsWithCreators);
+      setFeedItems((content ?? []).map((item) => ({ content: item, creator: item.creator })));
       setError(null);
-    } catch (error) {
-      console.error('Failed to fetch feed:', error);
+    } catch (err) {
+      console.error('Failed to fetch feed:', err);
       setError('Failed to load feed. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
-  const handleRetry = () => {
+  useEffect(() => {
     fetchFeed();
-  };
+    autoRefreshInterval.current = setInterval(() => fetchFeed(true), 30000);
+    return () => clearInterval(autoRefreshInterval.current);
+  }, [fetchFeed]);
 
   return (
     <>
@@ -101,15 +73,10 @@ const FeedPage = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-between mb-8">
-              <h1 className="text-4xl font-bold" style={{letterSpacing: '-0.02em'}}>
+              <h1 className="text-4xl font-bold" style={{ letterSpacing: '-0.02em' }}>
                 Your feed
               </h1>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => fetchFeed()}
-                disabled={loading}
-              >
+              <Button variant="ghost" size="sm" onClick={() => fetchFeed()} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
@@ -120,7 +87,7 @@ const FeedPage = () => {
                 <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-destructive mb-2">{error}</p>
-                  <Button variant="outline" size="sm" onClick={handleRetry}>
+                  <Button variant="outline" size="sm" onClick={() => fetchFeed()}>
                     Try Again
                   </Button>
                 </div>

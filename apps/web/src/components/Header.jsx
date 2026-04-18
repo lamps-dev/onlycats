@@ -10,8 +10,8 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -90,7 +90,7 @@ const Header = () => {
             ) : (
               <>
                 <span className="text-sm text-muted-foreground hidden sm:inline">
-                  {currentUser?.name || currentUser?.email}
+                  {currentUser?.display_name || currentUser?.email}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />

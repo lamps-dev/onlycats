@@ -1,97 +1,91 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import pb from '@/lib/pocketbaseClient.js';
-import { Heart, DollarSign, Calendar } from 'lucide-react';
+import supabase from '@/lib/supabaseClient.js';
+import { Heart, DollarSign } from 'lucide-react';
 import TipModal from './TipModal.jsx';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
 
 const ContentCard = ({ content, creator }) => {
-  const { isAuthenticated } = useAuth();
+  const { currentUser, isAuthenticated } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(content.likeCount || 0);
+  const [likeCount, setLikeCount] = useState(content.like_count || 0);
   const [tipModalOpen, setTipModalOpen] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && pb.authStore.model) {
-      checkIfLiked();
+    if (!isAuthenticated || !currentUser) {
+      setIsLiked(false);
+      return;
     }
-  }, [content.id, isAuthenticated]);
-
-  const checkIfLiked = async () => {
-    try {
-      const likes = await pb.collection('likes').getList(1, 1, {
-        filter: `userId="${pb.authStore.model.id}" && contentId="${content.id}"`,
-        $autoCancel: false,
+    let cancelled = false;
+    supabase
+      .from('likes')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', currentUser.id)
+      .eq('content_id', content.id)
+      .then(({ count }) => {
+        if (!cancelled) setIsLiked((count ?? 0) > 0);
       });
-      setIsLiked(likes.items.length > 0);
-    } catch (error) {
-      console.error('Error checking like status:', error);
-    }
-  };
+    return () => { cancelled = true; };
+  }, [content.id, isAuthenticated, currentUser]);
 
   const handleLike = async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !currentUser) {
       toast.error('Please login to like content');
       return;
     }
 
     try {
       if (isLiked) {
-        const likes = await pb.collection('likes').getList(1, 1, {
-          filter: `userId="${pb.authStore.model.id}" && contentId="${content.id}"`,
-          $autoCancel: false,
-        });
-        if (likes.items.length > 0) {
-          await pb.collection('likes').delete(likes.items[0].id, { $autoCancel: false });
-          setIsLiked(false);
-          setLikeCount(prev => prev - 1);
-        }
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('content_id', content.id);
+        if (error) throw error;
+        setIsLiked(false);
+        setLikeCount((prev) => Math.max(0, prev - 1));
       } else {
-        await pb.collection('likes').create({
-          userId: pb.authStore.model.id,
-          contentId: content.id,
-        }, { $autoCancel: false });
+        const { error } = await supabase
+          .from('likes')
+          .insert({ user_id: currentUser.id, content_id: content.id });
+        if (error) throw error;
         setIsLiked(true);
-        setLikeCount(prev => prev + 1);
+        setLikeCount((prev) => prev + 1);
       }
-    } catch (error) {
-      console.error('Like toggle failed:', error);
+    } catch (err) {
+      console.error('Like toggle failed:', err);
       toast.error('This cat is feeling finicky. Try again.');
     }
   };
 
-  const fileUrl = content.file ? pb.files.getUrl(content, content.file) : null;
-  const avatarUrl = creator?.avatar ? pb.files.getUrl(creator, creator.avatar) : null;
+  const fileUrl = content.file_url;
+  const avatarUrl = creator?.avatar_url;
+  const creatorName = creator?.display_name;
+  const creatorId = creator?.id;
 
-  const isVideo = content.file && (
-    content.file.endsWith('.mp4') || 
-    content.file.endsWith('.webm') ||
-    content.file.includes('.mp4?') ||
-    content.file.includes('.webm?')
-  );
+  const isVideo = fileUrl && /\.(mp4|webm)(\?|$)/i.test(fileUrl);
 
   return (
     <>
       <Card className="overflow-hidden hover:shadow-lg transition-all duration-200">
         <div className="p-4">
-          <Link to={`/${creator?.id}`} className="flex items-center gap-3 mb-3">
+          <Link to={`/${creatorId}`} className="flex items-center gap-3 mb-3">
             <Avatar className="w-10 h-10 rounded-xl">
-              <AvatarImage src={avatarUrl} alt={creator?.name || 'Creator'} />
+              <AvatarImage src={avatarUrl} alt={creatorName || 'Creator'} />
               <AvatarFallback className="rounded-xl bg-primary text-primary-foreground">
-                {creator?.name?.charAt(0) || 'C'}
+                {creatorName?.charAt(0) || 'C'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate">{creator?.name || 'Unknown Creator'}</p>
-              {content.created && (
+              <p className="font-semibold text-sm truncate">{creatorName || 'Unknown Creator'}</p>
+              {content.created_at && (
                 <p className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(content.created), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(content.created_at), { addSuffix: true })}
                 </p>
               )}
             </div>
@@ -141,7 +135,7 @@ const ContentCard = ({ content, creator }) => {
                 disabled={!isAuthenticated}
               >
                 <DollarSign className="w-4 h-4 mr-1" />
-                {content.tipCount || 0}
+                {content.tip_count || 0}
               </Button>
             </div>
           </div>
@@ -151,8 +145,8 @@ const ContentCard = ({ content, creator }) => {
       <TipModal
         isOpen={tipModalOpen}
         onClose={() => setTipModalOpen(false)}
-        creatorId={creator?.id}
-        creatorName={creator?.name}
+        creatorId={creatorId}
+        creatorName={creatorName}
       />
     </>
   );

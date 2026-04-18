@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
 import ContentUpload from '@/components/ContentUpload.jsx';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Users, UserPlus, UserMinus, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,87 +20,85 @@ const CreatorProfile = () => {
   const [content, setContent] = useState([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchCreatorData();
-  }, [creatorId]);
+  const isOwnProfile = !!(creator && currentUser && creator.id === currentUser.id);
 
-  useEffect(() => {
-    if (creator && currentUser) {
-      checkIfOwnProfile();
-      checkIfFollowing();
-    }
-  }, [creator, currentUser]);
-
-  const fetchCreatorData = async () => {
+  const fetchCreatorData = useCallback(async () => {
     setLoading(true);
     try {
-      const creatorRecord = await pb.collection('creators').getOne(creatorId, { $autoCancel: false });
-      setCreator(creatorRecord);
+      const [{ data: profile, error: profileErr }, { data: contentRows, error: contentErr }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, display_name, bio, avatar_url, follower_count')
+          .eq('id', creatorId)
+          .maybeSingle(),
+        supabase
+          .from('content')
+          .select('id, caption, file_url, like_count, tip_count, created_at, creator_id')
+          .eq('creator_id', creatorId)
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ]);
+      if (profileErr) throw profileErr;
+      if (contentErr) throw contentErr;
 
-      const contentRecords = await pb.collection('content').getList(1, 50, {
-        filter: `creatorId="${creatorId}"`,
-        sort: '-created',
-        $autoCancel: false,
-      });
-      setContent(contentRecords.items);
-    } catch (error) {
-      console.error('Failed to fetch creator data:', error);
+      setCreator(profile ?? null);
+      setContent(contentRows ?? []);
+    } catch (err) {
+      console.error('Failed to fetch creator data:', err);
       toast.error('Failed to load creator profile');
     } finally {
       setLoading(false);
     }
-  };
+  }, [creatorId]);
 
-  const checkIfOwnProfile = () => {
-    if (creator && currentUser) {
-      setIsOwnProfile(creator.userId === currentUser.id);
+  useEffect(() => { fetchCreatorData(); }, [fetchCreatorData]);
+
+  useEffect(() => {
+    if (!creator || !currentUser) {
+      setIsFollowing(false);
+      return;
     }
-  };
-
-  const checkIfFollowing = async () => {
-    if (!isAuthenticated || !currentUser) return;
-
-    try {
-      const follows = await pb.collection('followers').getList(1, 1, {
-        filter: `userId="${currentUser.id}" && creatorId="${creatorId}"`,
-        $autoCancel: false,
+    let cancelled = false;
+    supabase
+      .from('followers')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', currentUser.id)
+      .eq('creator_id', creator.id)
+      .then(({ count }) => {
+        if (!cancelled) setIsFollowing((count ?? 0) > 0);
       });
-      setIsFollowing(follows.items.length > 0);
-    } catch (error) {
-      console.error('Failed to check follow status:', error);
-    }
-  };
+    return () => { cancelled = true; };
+  }, [creator, currentUser]);
 
   const handleFollow = async () => {
     if (!isAuthenticated) {
       toast.error('Please login to follow creators');
       return;
     }
-
     try {
       if (isFollowing) {
-        const follows = await pb.collection('followers').getList(1, 1, {
-          filter: `userId="${currentUser.id}" && creatorId="${creatorId}"`,
-          $autoCancel: false,
-        });
-        if (follows.items.length > 0) {
-          await pb.collection('followers').delete(follows.items[0].id, { $autoCancel: false });
-          setIsFollowing(false);
-          toast.success('Unfollowed creator');
-        }
+        const { error } = await supabase
+          .from('followers')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('creator_id', creatorId);
+        if (error) throw error;
+        setIsFollowing(false);
+        setCreator((c) => c && { ...c, follower_count: Math.max(0, (c.follower_count ?? 0) - 1) });
+        toast.success('Unfollowed creator');
       } else {
-        await pb.collection('followers').create({
-          userId: currentUser.id,
-          creatorId: creatorId,
-        }, { $autoCancel: false });
+        const { error } = await supabase
+          .from('followers')
+          .insert({ user_id: currentUser.id, creator_id: creatorId });
+        if (error) throw error;
         setIsFollowing(true);
+        setCreator((c) => c && { ...c, follower_count: (c.follower_count ?? 0) + 1 });
         toast.success('Following creator');
       }
-    } catch (error) {
-      console.error('Follow toggle failed:', error);
+    } catch (err) {
+      console.error('Follow toggle failed:', err);
       toast.error('Failed to update follow status');
     }
   };
@@ -110,8 +107,6 @@ const CreatorProfile = () => {
     setUploadModalOpen(false);
     fetchCreatorData();
   };
-
-  const avatarUrl = creator?.avatar ? pb.files.getUrl(creator, creator.avatar) : null;
 
   if (loading) {
     return (
@@ -149,8 +144,8 @@ const CreatorProfile = () => {
   return (
     <>
       <Helmet>
-        <title>{`${creator.name} - OnlyCats`}</title>
-        <meta name="description" content={creator.bio || `View ${creator.name}'s cat content on OnlyCats`} />
+        <title>{`${creator.display_name} - OnlyCats`}</title>
+        <meta name="description" content={creator.bio || `View ${creator.display_name}'s cat content on OnlyCats`} />
       </Helmet>
 
       <Header />
@@ -160,13 +155,13 @@ const CreatorProfile = () => {
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-12">
               <Avatar className="w-32 h-32 rounded-2xl mx-auto mb-6">
-                <AvatarImage src={avatarUrl} alt={creator.name} />
+                <AvatarImage src={creator.avatar_url} alt={creator.display_name} />
                 <AvatarFallback className="rounded-2xl bg-primary text-primary-foreground text-4xl">
-                  {creator.name?.charAt(0) || 'C'}
+                  {creator.display_name?.charAt(0) || 'C'}
                 </AvatarFallback>
               </Avatar>
 
-              <h1 className="text-4xl font-bold mb-3">{creator.name}</h1>
+              <h1 className="text-4xl font-bold mb-3">{creator.display_name}</h1>
 
               {creator.bio && (
                 <p className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto">
@@ -177,7 +172,7 @@ const CreatorProfile = () => {
               <div className="flex items-center justify-center gap-6 mb-6">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Users className="w-5 h-5" />
-                  <span className="font-medium">{creator.followerCount || 0} followers</span>
+                  <span className="font-medium">{creator.follower_count || 0} followers</span>
                 </div>
               </div>
 
@@ -185,15 +180,9 @@ const CreatorProfile = () => {
                 {!isOwnProfile && isAuthenticated && (
                   <Button size="lg" onClick={handleFollow}>
                     {isFollowing ? (
-                      <>
-                        <UserMinus className="w-5 h-5 mr-2" />
-                        Unfollow
-                      </>
+                      <><UserMinus className="w-5 h-5 mr-2" />Unfollow</>
                     ) : (
-                      <>
-                        <UserPlus className="w-5 h-5 mr-2" />
-                        Follow
-                      </>
+                      <><UserPlus className="w-5 h-5 mr-2" />Follow</>
                     )}
                   </Button>
                 )}

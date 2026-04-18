@@ -1,12 +1,11 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ApiKeyManagement from '@/components/ApiKeyManagement.jsx';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Key, Trash2, Calendar, Activity, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,82 +17,76 @@ const DeveloperDashboard = () => {
   const [usageStats, setUsageStats] = useState({ total: 0, byEndpoint: {} });
   const [loading, setLoading] = useState(true);
 
+  const fetchApiKeys = useCallback(async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('api_keys')
+      .select('id, key, name, revoked, last_used, created_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) {
+      console.error('Failed to fetch API keys:', error);
+      toast.error('Failed to load API keys');
+    } else {
+      setApiKeys(data ?? []);
+    }
+    setLoading(false);
+  }, [currentUser]);
+
+  const fetchUsageStats = useCallback(async () => {
+    if (!currentUser) return;
+    const firstDayOfMonth = new Date();
+    firstDayOfMonth.setDate(1);
+    firstDayOfMonth.setHours(0, 0, 0, 0);
+
+    const { data: keys, error: keysErr } = await supabase
+      .from('api_keys')
+      .select('id')
+      .eq('user_id', currentUser.id);
+    if (keysErr || !keys?.length) {
+      setUsageStats({ total: 0, byEndpoint: {} });
+      return;
+    }
+
+    const { data: usage, error: usageErr } = await supabase
+      .from('api_usage')
+      .select('endpoint')
+      .in('api_key_id', keys.map((k) => k.id))
+      .gte('created_at', firstDayOfMonth.toISOString());
+    if (usageErr) {
+      console.error('Failed to fetch usage stats:', usageErr);
+      return;
+    }
+
+    const byEndpoint = {};
+    for (const row of usage ?? []) {
+      byEndpoint[row.endpoint] = (byEndpoint[row.endpoint] || 0) + 1;
+    }
+    setUsageStats({ total: usage?.length ?? 0, byEndpoint });
+  }, [currentUser]);
+
   useEffect(() => {
     fetchApiKeys();
     fetchUsageStats();
-  }, []);
-
-  const fetchApiKeys = async () => {
-    setLoading(true);
-    try {
-      const keys = await pb.collection('api_keys').getList(1, 50, {
-        filter: `userId="${currentUser.id}"`,
-        sort: '-created',
-        $autoCancel: false,
-      });
-      setApiKeys(keys.items);
-    } catch (error) {
-      console.error('Failed to fetch API keys:', error);
-      toast.error('Failed to load API keys');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUsageStats = async () => {
-    try {
-      const keys = await pb.collection('api_keys').getFullList({
-        filter: `userId="${currentUser.id}"`,
-        $autoCancel: false,
-      });
-
-      if (keys.length === 0) {
-        setUsageStats({ total: 0, byEndpoint: {} });
-        return;
-      }
-
-      const keyIds = keys.map(k => k.id);
-      const filterStr = keyIds.map(id => `apiKeyId="${id}"`).join(' || ');
-
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const firstDayStr = firstDayOfMonth.toISOString().split('T')[0];
-
-      const usage = await pb.collection('api_usage').getFullList({
-        filter: `(${filterStr}) && created >= "${firstDayStr}"`,
-        $autoCancel: false,
-      });
-
-      const byEndpoint = {};
-      usage.forEach(record => {
-        byEndpoint[record.endpoint] = (byEndpoint[record.endpoint] || 0) + 1;
-      });
-
-      setUsageStats({
-        total: usage.length,
-        byEndpoint,
-      });
-    } catch (error) {
-      console.error('Failed to fetch usage stats:', error);
-    }
-  };
+  }, [fetchApiKeys, fetchUsageStats]);
 
   const handleRevokeKey = async (keyId) => {
     if (!window.confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
       return;
     }
-
-    try {
-      await pb.collection('api_keys').update(keyId, {
-        revoked: true,
-      }, { $autoCancel: false });
-
-      toast.success('API key revoked');
-      fetchApiKeys();
-    } catch (error) {
+    const { error } = await supabase
+      .from('api_keys')
+      .update({ revoked: true })
+      .eq('id', keyId);
+    if (error) {
       console.error('Failed to revoke API key:', error);
       toast.error('Failed to revoke API key');
+      return;
     }
+    toast.success('API key revoked');
+    fetchApiKeys();
   };
 
   return (
@@ -109,7 +102,7 @@ const DeveloperDashboard = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto">
             <div className="mb-12">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{letterSpacing: '-0.02em'}}>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ letterSpacing: '-0.02em' }}>
                 Developer Dashboard
               </h1>
               <p className="text-lg text-muted-foreground">
@@ -132,7 +125,7 @@ const DeveloperDashboard = () => {
                   <Key className="w-5 h-5 text-secondary" />
                   <span className="text-sm font-medium text-muted-foreground">Active Keys</span>
                 </div>
-                <p className="text-3xl font-bold">{apiKeys.filter(k => !k.revoked).length}</p>
+                <p className="text-3xl font-bold">{apiKeys.filter((k) => !k.revoked).length}</p>
                 <p className="text-xs text-muted-foreground mt-1">Out of {apiKeys.length} total</p>
               </Card>
 
@@ -183,11 +176,7 @@ const DeveloperDashboard = () => {
                             </p>
                           </div>
                           {!key.revoked && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRevokeKey(key.id)}
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => handleRevokeKey(key.id)}>
                               <Trash2 className="w-4 h-4 text-destructive" />
                             </Button>
                           )}
@@ -195,7 +184,7 @@ const DeveloperDashboard = () => {
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            <span>Created {format(new Date(key.created), 'MMM d, yyyy')}</span>
+                            <span>Created {format(new Date(key.created_at), 'MMM d, yyyy')}</span>
                           </div>
                           {key.last_used && (
                             <div className="flex items-center gap-1">

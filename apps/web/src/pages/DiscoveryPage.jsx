@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
@@ -8,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
 import { Search, Users } from 'lucide-react';
 
 const DiscoveryPage = () => {
@@ -17,26 +16,25 @@ const DiscoveryPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchCreators = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, bio, avatar_url, follower_count')
+        .order('follower_count', { ascending: false })
+        .limit(50);
+      if (error) {
+        console.error('Failed to fetch creators:', error);
+      } else {
+        setCreators(data ?? []);
+      }
+      setLoading(false);
+    };
     fetchCreators();
   }, []);
 
-  const fetchCreators = async () => {
-    setLoading(true);
-    try {
-      const records = await pb.collection('creators').getList(1, 50, {
-        sort: '-followerCount',
-        $autoCancel: false,
-      });
-      setCreators(records.items);
-    } catch (error) {
-      console.error('Failed to fetch creators:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const filteredCreators = creators.filter((creator) =>
-    creator.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (creator.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -51,7 +49,7 @@ const DiscoveryPage = () => {
       <main className="min-h-[calc(100vh-4rem)] py-12">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{letterSpacing: '-0.02em'}}>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ letterSpacing: '-0.02em' }}>
               Discover creators
             </h1>
             <p className="text-lg text-muted-foreground mb-6">
@@ -92,41 +90,37 @@ const DiscoveryPage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredCreators.map((creator) => {
-                const avatarUrl = creator.avatar ? pb.files.getUrl(creator, creator.avatar) : null;
-                
-                return (
-                  <Card key={creator.id} className="p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-1 flex flex-col h-full">
-                    <div className="flex-1">
-                      <Avatar className="w-24 h-24 rounded-xl mx-auto mb-4">
-                        <AvatarImage src={avatarUrl} alt={creator.name} />
-                        <AvatarFallback className="rounded-xl bg-primary text-primary-foreground text-2xl">
-                          {creator.name?.charAt(0) || 'C'}
-                        </AvatarFallback>
-                      </Avatar>
+              {filteredCreators.map((creator) => (
+                <Card key={creator.id} className="p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-1 flex flex-col h-full">
+                  <div className="flex-1">
+                    <Avatar className="w-24 h-24 rounded-xl mx-auto mb-4">
+                      <AvatarImage src={creator.avatar_url} alt={creator.display_name} />
+                      <AvatarFallback className="rounded-xl bg-primary text-primary-foreground text-2xl">
+                        {creator.display_name?.charAt(0) || 'C'}
+                      </AvatarFallback>
+                    </Avatar>
 
-                      <h3 className="font-semibold text-lg text-center mb-2 truncate">
-                        {creator.name}
-                      </h3>
+                    <h3 className="font-semibold text-lg text-center mb-2 truncate">
+                      {creator.display_name}
+                    </h3>
 
-                      {creator.bio && (
-                        <p className="text-sm text-muted-foreground text-center mb-3 line-clamp-2">
-                          {creator.bio}
-                        </p>
-                      )}
+                    {creator.bio && (
+                      <p className="text-sm text-muted-foreground text-center mb-3 line-clamp-2">
+                        {creator.bio}
+                      </p>
+                    )}
 
-                      <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-4">
-                        <Users className="w-4 h-4" />
-                        <span>{creator.followerCount || 0} followers</span>
-                      </div>
+                    <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-4">
+                      <Users className="w-4 h-4" />
+                      <span>{creator.follower_count || 0} followers</span>
                     </div>
+                  </div>
 
-                    <Button asChild className="w-full mt-auto">
-                      <Link to={`/${creator.id}`}>View Profile</Link>
-                    </Button>
-                  </Card>
-                );
-              })}
+                  <Button asChild className="w-full mt-auto">
+                    <Link to={`/${creator.id}`}>View Profile</Link>
+                  </Button>
+                </Card>
+              ))}
             </div>
           )}
         </div>

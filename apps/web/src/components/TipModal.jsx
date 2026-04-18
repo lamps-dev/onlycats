@@ -1,13 +1,14 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import pb from '@/lib/pocketbaseClient.js';
+import supabase from '@/lib/supabaseClient.js';
+import { useAuth } from '@/contexts/AuthContext.jsx';
 import { toast } from 'sonner';
 import { DollarSign } from 'lucide-react';
 
 const TipModal = ({ isOpen, onClose, creatorId, creatorName }) => {
+  const { currentUser } = useAuth();
   const [selectedAmount, setSelectedAmount] = useState(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,22 +20,29 @@ const TipModal = ({ isOpen, onClose, creatorId, creatorName }) => {
       toast.error('Please select a tip amount');
       return;
     }
+    if (!currentUser) {
+      toast.error('Please login to send tips');
+      return;
+    }
 
     setLoading(true);
     try {
-      await pb.collection('tips').create({
-        senderId: pb.authStore.model.id,
-        creatorId: creatorId,
-        amount: selectedAmount,
-        message: message || '',
-      }, { $autoCancel: false });
+      const { error } = await supabase
+        .from('tips')
+        .insert({
+          sender_id: currentUser.id,
+          creator_id: creatorId,
+          amount: selectedAmount,
+          message: message || null,
+        });
+      if (error) throw error;
 
       toast.success(`Tipped $${selectedAmount} to ${creatorName}`);
       setSelectedAmount(null);
       setMessage('');
       onClose();
-    } catch (error) {
-      console.error('Tip failed:', error);
+    } catch (err) {
+      console.error('Tip failed:', err);
       toast.error('Failed to send tip. Looks like this cat knocked your wallet off the table.');
     } finally {
       setLoading(false);
