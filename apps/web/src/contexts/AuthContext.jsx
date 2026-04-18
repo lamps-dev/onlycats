@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient.js';
 
 const AuthContext = createContext(null);
@@ -35,11 +36,13 @@ const mergeUserWithProfile = (user, profile) => {
 };
 
 export const AuthProvider = ({ children }) => {
+	const navigate = useNavigate();
 	const [currentUser, setCurrentUser] = useState(null);
 	const [initialLoading, setInitialLoading] = useState(true);
 
 	useEffect(() => {
 		let cancelled = false;
+		const wasOAuthCallback = typeof window !== 'undefined' && window.location.hash.includes('access_token=');
 
 		const hydrate = async () => {
 			const { data: { session } } = await supabase.auth.getSession();
@@ -47,6 +50,9 @@ export const AuthProvider = ({ children }) => {
 			if (!cancelled) {
 				setCurrentUser(mergeUserWithProfile(session?.user, profile));
 				setInitialLoading(false);
+				if (wasOAuthCallback && session?.user) {
+					navigate('/discover', { replace: true });
+				}
 			}
 		};
 		hydrate();
@@ -60,7 +66,7 @@ export const AuthProvider = ({ children }) => {
 			cancelled = true;
 			subscription.unsubscribe();
 		};
-	}, []);
+	}, [navigate]);
 
 	const login = useCallback(async (email, password) => {
 		const { data, error } = await supabase.auth.signInWithPassword({ email, password });
