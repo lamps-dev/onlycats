@@ -20,6 +20,7 @@ import AddToCollectionDialog from './AddToCollectionDialog.jsx';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
+import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
 const ContentCard = ({ content, creator, onDelete }) => {
   const { currentUser, isAuthenticated, isModerator, isOwner } = useAuth();
@@ -149,7 +150,12 @@ const ContentCard = ({ content, creator, onDelete }) => {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm truncate">{creatorName || 'Unknown Creator'}</p>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="font-semibold text-sm truncate flex-1 min-w-0">
+                  {creatorName || 'Unknown Creator'}
+                </p>
+                <StaffRoleBadge role={creator?.role} className="shrink-0" />
+              </div>
               {content.created_at && (
                 <p className="text-xs text-muted-foreground">
                   {formatDistanceToNow(new Date(content.created_at), { addSuffix: true })}

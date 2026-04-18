@@ -10,6 +10,8 @@ import ContentCard from '@/components/ContentCard.jsx';
 import ContentUpload from '@/components/ContentUpload.jsx';
 import CollectionsManager from '@/components/CollectionsManager.jsx';
 import MarkdownContent from '@/components/MarkdownContent.jsx';
+import TaglineText from '@/components/TaglineText.jsx';
+import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Users, UserPlus, UserMinus, Upload, Settings, MapPin, Globe, Link as LinkIcon } from 'lucide-react';
@@ -37,7 +39,7 @@ const CreatorProfile = () => {
       const [{ data: profile, error: profileErr }, { data: contentRows, error: contentErr }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links')
+          .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role')
           .eq('id', creatorId)
           .maybeSingle(),
         supabase
@@ -168,12 +170,17 @@ const CreatorProfile = () => {
                 </AvatarFallback>
               </Avatar>
 
-              <h1 className="text-4xl font-bold mb-3">{creator.display_name}</h1>
+              <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
+                <h1 className="text-4xl font-bold">{creator.display_name}</h1>
+                <StaffRoleBadge role={creator.role} className="shrink-0" />
+              </div>
 
               {creator.bio && (
-                <p className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto">
-                  {creator.bio}
-                </p>
+                <TaglineText
+                  text={creator.bio}
+                  isOwnerTagline={creator.role === 'owner'}
+                  className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto"
+                />
               )}
 
               <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mb-4 text-muted-foreground">

@@ -41,7 +41,7 @@ const FeedPage = () => {
 
       const { data: content, error: contentErr } = await supabase
         .from('content')
-        .select('id, caption, file_url, like_count, tip_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url)')
+        .select('id, caption, file_url, like_count, tip_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role)')
         .in('creator_id', creatorIds)
         .order('created_at', { ascending: false })
         .limit(50);

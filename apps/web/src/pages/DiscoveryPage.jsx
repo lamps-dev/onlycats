@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
+import TaglineText from '@/components/TaglineText.jsx';
+import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { Search, Users } from 'lucide-react';
 
@@ -20,7 +22,7 @@ const DiscoveryPage = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, bio, avatar_url, follower_count')
+        .select('id, display_name, bio, avatar_url, follower_count, role')
         .order('follower_count', { ascending: false })
         .limit(50);
       if (error) {
@@ -100,14 +102,19 @@ const DiscoveryPage = () => {
                       </AvatarFallback>
                     </Avatar>
 
-                    <h3 className="font-semibold text-lg text-center mb-2 truncate">
-                      {creator.display_name}
-                    </h3>
+                    <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
+                      <h3 className="font-semibold text-lg text-center truncate max-w-[min(100%,12rem)]">
+                        {creator.display_name}
+                      </h3>
+                      <StaffRoleBadge role={creator.role} className="shrink-0" />
+                    </div>
 
                     {creator.bio && (
-                      <p className="text-sm text-muted-foreground text-center mb-3 line-clamp-2">
-                        {creator.bio}
-                      </p>
+                      <TaglineText
+                        text={creator.bio}
+                        isOwnerTagline={creator.role === 'owner'}
+                        className="text-sm text-muted-foreground text-center mb-3 line-clamp-2"
+                      />
                     )}
 
                     <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-4">

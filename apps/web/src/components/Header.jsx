@@ -6,6 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Cat, LogOut, Shield, Settings, Sun, Moon, Gavel } from 'lucide-react';
 import TimeoutBanner from '@/components/TimeoutBanner.jsx';
+import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
 const Header = () => {
   const { isAuthenticated, logout, currentUser, isOwner, isModerator } = useAuth();
@@ -126,8 +127,11 @@ const Header = () => {
               </>
             ) : (
               <>
-                <span className="text-sm text-muted-foreground hidden sm:inline">
-                  {currentUser?.display_name || currentUser?.email}
+                <span className="hidden sm:inline-flex items-center gap-2 max-w-[12rem] sm:max-w-[16rem]">
+                  <span className="text-sm text-muted-foreground truncate">
+                    {currentUser?.display_name || currentUser?.email}
+                  </span>
+                  <StaffRoleBadge role={currentUser?.role} className="shrink-0" />
                 </span>
                 <Button
                   variant="ghost"
