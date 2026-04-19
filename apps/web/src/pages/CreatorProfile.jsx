@@ -36,7 +36,11 @@ const CreatorProfile = () => {
   const fetchCreatorData = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: profile, error: profileErr }, { data: contentRows, error: contentErr }] = await Promise.all([
+      const [
+        { data: profile, error: profileErr },
+        { data: contentRows, error: contentErr },
+        { data: repostRows, error: repostErr },
+      ] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role')
@@ -44,16 +48,53 @@ const CreatorProfile = () => {
           .maybeSingle(),
         supabase
           .from('content')
-          .select('id, caption, file_url, like_count, tip_count, created_at, creator_id')
+          .select('id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id')
           .eq('creator_id', creatorId)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('reposts')
+          .select(
+            'id, quote_text, overlay_text, created_at, content:content!content_id(id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role))',
+          )
+          .eq('user_id', creatorId)
           .order('created_at', { ascending: false })
           .limit(50),
       ]);
       if (profileErr) throw profileErr;
       if (contentErr) throw contentErr;
+      if (repostErr) throw repostErr;
+
+      const ownItems = (contentRows ?? []).map((row) => ({
+        kind: 'own',
+        sortAt: row.created_at,
+        content: row,
+        creator: null,
+        repost: null,
+        key: `own:${row.id}`,
+      }));
+      const repostItems = (repostRows ?? [])
+        .filter((r) => r.content)
+        .map((r) => ({
+          kind: 'repost',
+          sortAt: r.created_at,
+          content: r.content,
+          creator: r.content.creator ?? null,
+          repost: {
+            id: r.id,
+            quote_text: r.quote_text,
+            overlay_text: r.overlay_text,
+            created_at: r.created_at,
+            reposter_name: profile?.display_name ?? null,
+          },
+          key: `repost:${r.id}`,
+        }));
+      const merged = [...ownItems, ...repostItems].sort(
+        (a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime(),
+      );
 
       setCreator(profile ?? null);
-      setContent(contentRows ?? []);
+      setContent(merged);
     } catch (err) {
       console.error('Failed to fetch creator data:', err);
       toast.error('Failed to load creator profile');
@@ -259,15 +300,24 @@ const CreatorProfile = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {content.map((item) => (
                     <ContentCard
-                      key={item.id}
-                      content={item}
-                      creator={creator}
+                      key={item.key}
+                      content={item.content}
+                      creator={item.kind === 'own' ? creator : item.creator}
+                      repost={item.repost}
                       onDelete={(deletedId) =>
-                        setContent((items) => items.filter((i) => i.id !== deletedId))
+                        setContent((items) =>
+                          items.filter(
+                            (i) => !(i.kind === 'own' && i.content.id === deletedId),
+                          ),
+                        )
                       }
                       onCaptionChange={(postId, caption) =>
                         setContent((items) =>
-                          items.map((row) => (row.id === postId ? { ...row, caption } : row)),
+                          items.map((row) =>
+                            row.kind === 'own' && row.content.id === postId
+                              ? { ...row, content: { ...row.content, caption } }
+                              : row,
+                          ),
                         )
                       }
                     />

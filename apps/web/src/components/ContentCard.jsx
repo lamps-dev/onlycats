@@ -27,7 +27,7 @@ import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
 const CAPTION_MAX_LEN = 2000;
 
-const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
+const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) => {
   const { currentUser, isAuthenticated, isModerator, isOwner } = useAuth();
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
@@ -274,6 +274,16 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
     <>
       <Card className="overflow-hidden hover:shadow-lg transition-all duration-200">
         <div className="p-4">
+          {repost && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+              <Repeat2 className="w-3.5 h-3.5" />
+              <span>
+                {repost.reposter_name ? `${repost.reposter_name} reposted` : 'Reposted'}
+                {repost.created_at && ` · ${formatDistanceToNow(new Date(repost.created_at), { addSuffix: true })}`}
+              </span>
+            </div>
+          )}
+
           <Link to={`/${creatorId}`} className="flex items-center gap-3 mb-3">
             <Avatar className="w-10 h-10 rounded-xl">
               <AvatarImage src={avatarUrl} alt={creatorName || 'Creator'} />
@@ -296,6 +306,12 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
             </div>
           </Link>
 
+          {repost?.quote_text && (
+            <p className="text-sm italic text-foreground/90 mb-3 whitespace-pre-wrap">
+              {repost.quote_text}
+            </p>
+          )}
+
           {fileUrl && (
             <div className="relative aspect-square rounded-xl overflow-hidden mb-3 bg-muted">
               {isVideo ? (
@@ -314,6 +330,16 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
+              )}
+              {repost?.overlay_text && (
+                <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+                  <p
+                    className="text-white text-center text-xl font-bold leading-tight break-words"
+                    style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.9)' }}
+                  >
+                    {repost.overlay_text}
+                  </p>
+                </div>
               )}
             </div>
           )}
