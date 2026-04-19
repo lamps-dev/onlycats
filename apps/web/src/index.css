@@ -104,6 +104,18 @@ html {
     color: hsl(var(--foreground));
   }
 
+  /* Force text inputs and textareas to render white in dark mode, even when
+     components hard-code text-gray-900 for readability on light surfaces. */
+  .dark input,
+  .dark textarea,
+  .dark select {
+    color: #fff;
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
   h1, h2, h3, h4, h5, h6 {
     text-wrap: balance;
   }
