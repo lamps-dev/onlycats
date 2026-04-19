@@ -147,6 +147,7 @@ const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
               playsInline
               muted={muted}
               preload="metadata"
+              crossOrigin="anonymous"
             />
           ) : (
             <img

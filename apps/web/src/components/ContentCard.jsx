@@ -320,6 +320,7 @@ const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) =>
                   controls
                   className="w-full h-full object-cover"
                   preload="metadata"
+                  crossOrigin="anonymous"
                 >
                   Your browser does not support the video tag.
                 </video>
