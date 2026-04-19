@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,11 @@ import DeleteAccountDialog from '@/components/DeleteAccountDialog.jsx';
 import CollectionsManager from '@/components/CollectionsManager.jsx';
 import MarkdownContent from '@/components/MarkdownContent.jsx';
 import supabase from '@/lib/supabaseClient.js';
+import apiServerClient from '@/lib/apiServerClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { useTheme } from '@/contexts/ThemeContext.jsx';
-import { Trash2, Plus, X, Sun, Moon, Monitor } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Trash2, Plus, X, Sun, Moon, Monitor, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 
 const SOCIAL_PLATFORMS = [
@@ -34,8 +36,12 @@ const SOCIAL_PLATFORMS = [
 
 const DEFAULT_PREFS = { tips: true, follows: true, likes: false, email: false };
 
+const AVATAR_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
 const SettingsPage = () => {
   const navigate = useNavigate();
+  const avatarInputRef = useRef(null);
   const { currentUser, refreshProfile } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -48,6 +54,7 @@ const SettingsPage = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPrefs, setSavingPrefs]     = useState(false);
   const [deleteOpen, setDeleteOpen]       = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -69,6 +76,71 @@ const SettingsPage = () => {
   const addSocial    = () => setSocials((s) => [...s, { platform: 'twitter', url: '' }]);
   const removeSocial = (i) => setSocials((s) => s.filter((_, idx) => idx !== i));
   const updateSocial = (i, patch) => setSocials((s) => s.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+
+  const handleAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !currentUser) return;
+    if (!AVATAR_IMAGE_TYPES.has(file.type)) {
+      toast.error('Use a JPG, PNG, GIF, or WebP image.');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      toast.error('Image must be 5MB or smaller.');
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not signed in');
+
+      const { uploadUrl, publicUrl } = await apiServerClient.post(
+        '/uploads/sign',
+        { contentType: file.type, size: file.size },
+        { headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
+
+      await apiServerClient.post(
+        '/account/avatar',
+        { publicUrl },
+        { headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
+      await refreshProfile();
+      toast.success('Profile photo updated');
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+      toast.error(err.message || 'Failed to upload photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const clearAvatar = async () => {
+    if (!currentUser) return;
+    setUploadingAvatar(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not signed in');
+      await apiServerClient.post(
+        '/account/avatar',
+        { publicUrl: null },
+        { headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
+      await refreshProfile();
+      toast.success('Profile photo removed');
+    } catch (err) {
+      console.error('Avatar clear failed:', err);
+      toast.error(err.message || 'Failed to remove photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const saveProfile = async () => {
     if (!currentUser) return;
@@ -144,6 +216,53 @@ const SettingsPage = () => {
 
               <TabsContent value="profile">
                 <Card className="p-6 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-2 border-b">
+                    <Avatar className="w-24 h-24 rounded-2xl shrink-0">
+                      <AvatarImage src={currentUser.avatar_url} alt="" />
+                      <AvatarFallback className="rounded-2xl bg-primary text-primary-foreground text-2xl">
+                        {currentUser.display_name?.charAt(0) || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-2">
+                      <Label>Profile photo</Label>
+                      <p className="text-sm text-muted-foreground">
+                        JPG, PNG, GIF, or WebP — max 5MB. Shown on your public profile and across the site.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/gif,image/webp"
+                          className="sr-only"
+                          onChange={handleAvatarFile}
+                          disabled={uploadingAvatar}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={uploadingAvatar}
+                          onClick={() => avatarInputRef.current?.click()}
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          {uploadingAvatar ? 'Uploading…' : 'Change photo'}
+                        </Button>
+                        {currentUser.avatar_url && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground"
+                            disabled={uploadingAvatar}
+                            onClick={clearAvatar}
+                          >
+                            Remove photo
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <Label htmlFor="bio">Short bio</Label>
                     <Input

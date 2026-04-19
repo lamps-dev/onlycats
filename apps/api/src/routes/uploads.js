@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { r2, R2_BUCKET_NAME, R2_PUBLIC_BASE } from '../utils/r2Client.js';
+import { r2, R2_BUCKET_NAME, R2_PUBLIC_BASE, keyFromPublicUrl } from '../utils/r2Client.js';
 import { requireUser, blockIfTimedOut } from '../middleware/userAuthMiddleware.js';
 import supabase from '../utils/supabaseClient.js';
 import { getUserRole, ROLES } from '../utils/roles.js';
@@ -61,15 +61,6 @@ router.post('/sign', requireUser, blockIfTimedOut, async (req, res, next) => {
 		next(err);
 	}
 });
-
-// Extract the R2 object key from a public file URL, or null if the URL is not one of ours.
-const keyFromPublicUrl = (url) => {
-	if (typeof url !== 'string') return null;
-	const prefix = `${R2_PUBLIC_BASE}/`;
-	if (!url.startsWith(prefix)) return null;
-	const k = url.slice(prefix.length);
-	return k.length > 0 ? k : null;
-};
 
 // DELETE /uploads/content/:id — delete a post (row in `content`) and its R2 object.
 // Author can delete own post; moderator/owner can delete any post.

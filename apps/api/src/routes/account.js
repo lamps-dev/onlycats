@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
-import { r2, R2_BUCKET_NAME } from '../utils/r2Client.js';
-import { requireUser, authenticate } from '../middleware/userAuthMiddleware.js';
+import { ListObjectsV2Command, DeleteObjectsCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { r2, R2_BUCKET_NAME, keyFromPublicUrl } from '../utils/r2Client.js';
+import { requireUser, authenticate, blockIfTimedOut } from '../middleware/userAuthMiddleware.js';
 import supabase from '../utils/supabaseClient.js';
 import logger from '../utils/logger.js';
 import { getUserRole } from '../utils/roles.js';
@@ -12,6 +12,67 @@ const router = Router();
 // the frontend to decide whether to show admin/moderator UI, and to render a
 // banned/timeout screen when the caller has an active sanction. Uses bare
 // `authenticate` so banned users still receive their ban details.
+// Best-effort: remove an R2 object only if it lives under this user's prefix.
+const deleteUserR2ObjectIfOwned = async (userId, publicUrl) => {
+	const key = keyFromPublicUrl(publicUrl);
+	if (!key) return;
+	const prefix = `${userId}/`;
+	if (!key.startsWith(prefix)) return;
+	try {
+		await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
+	} catch (r2Err) {
+		logger.warn?.(`R2 avatar delete failed for ${key}: ${r2Err?.message || r2Err}`);
+	}
+};
+
+// POST /account/avatar — set profile photo URL (after client PUT to signed URL), and delete the previous R2 file when it was ours.
+// Body: { publicUrl: string | null }
+router.post('/avatar', requireUser, blockIfTimedOut, async (req, res, next) => {
+	try {
+		const { publicUrl } = req.body || {};
+		const userId = req.user.id;
+
+		const { data: profile, error: fetchErr } = await supabase
+			.from('profiles')
+			.select('avatar_url')
+			.eq('id', userId)
+			.maybeSingle();
+		if (fetchErr) return next(fetchErr);
+
+		const oldUrl = profile?.avatar_url ?? null;
+		let newUrl = null;
+
+		if (publicUrl === null || publicUrl === undefined || publicUrl === '') {
+			newUrl = null;
+		} else if (typeof publicUrl === 'string') {
+			const key = keyFromPublicUrl(publicUrl);
+			if (!key) {
+				return res.status(400).json({ error: 'Invalid image URL' });
+			}
+			if (!key.startsWith(`${userId}/`)) {
+				return res.status(403).json({ error: 'Image must be uploaded to your own storage path' });
+			}
+			newUrl = publicUrl;
+		} else {
+			return res.status(400).json({ error: 'publicUrl must be a string or null' });
+		}
+
+		const { error: updErr } = await supabase
+			.from('profiles')
+			.update({ avatar_url: newUrl })
+			.eq('id', userId);
+		if (updErr) return next(updErr);
+
+		if (oldUrl && oldUrl !== newUrl) {
+			await deleteUserR2ObjectIfOwned(userId, oldUrl);
+		}
+
+		res.json({ avatar_url: newUrl });
+	} catch (err) {
+		next(err);
+	}
+});
+
 router.get('/me', authenticate, async (req, res, next) => {
 	try {
 		const role = await getUserRole(req.user.id);
