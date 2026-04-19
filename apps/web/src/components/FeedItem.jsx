@@ -249,7 +249,7 @@ const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
           </Avatar>
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-sm truncate">{creatorName}</span>
-            <StaffRoleBadge role={creator?.role} className="shrink-0" />
+            <StaffRoleBadge role={creator?.role} isBot={creator?.is_bot} className="shrink-0" />
           </div>
         </Link>
 

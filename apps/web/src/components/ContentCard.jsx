@@ -296,7 +296,7 @@ const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) =>
                 <p className="font-semibold text-sm truncate flex-1 min-w-0">
                   {creatorName || 'Unknown Creator'}
                 </p>
-                <StaffRoleBadge role={creator?.role} className="shrink-0" />
+                <StaffRoleBadge role={creator?.role} isBot={creator?.is_bot} className="shrink-0" />
               </div>
               {content.created_at && (
                 <p className="text-xs text-muted-foreground">

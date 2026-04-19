@@ -70,13 +70,13 @@ const FeedPage = () => {
       const [postsRes, repostsRes] = await Promise.all([
         supabase
           .from('content')
-          .select('id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role)')
+          .select('id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role, is_bot)')
           .in('creator_id', creatorIds)
           .order('created_at', { ascending: false })
           .limit(50),
         supabase
           .from('reposts')
-          .select('id, quote_text, overlay_text, created_at, user_id, reposter:profiles!user_id(id, display_name, avatar_url, role), content:content!content_id(id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role))')
+          .select('id, quote_text, overlay_text, created_at, user_id, reposter:profiles!user_id(id, display_name, avatar_url, role, is_bot), content:content!content_id(id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role, is_bot))')
           .in('user_id', creatorIds)
           .order('created_at', { ascending: false })
           .limit(50),

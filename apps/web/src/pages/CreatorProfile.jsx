@@ -43,7 +43,7 @@ const CreatorProfile = () => {
       ] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role')
+          .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role, is_bot')
           .eq('id', creatorId)
           .maybeSingle(),
         supabase
@@ -55,7 +55,7 @@ const CreatorProfile = () => {
         supabase
           .from('reposts')
           .select(
-            'id, quote_text, overlay_text, created_at, content:content!content_id(id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role))',
+            'id, quote_text, overlay_text, created_at, content:content!content_id(id, caption, file_url, like_count, tip_count, comment_count, repost_count, created_at, creator_id, creator:profiles!creator_id(id, display_name, avatar_url, role, is_bot))',
           )
           .eq('user_id', creatorId)
           .order('created_at', { ascending: false })
@@ -213,7 +213,7 @@ const CreatorProfile = () => {
 
               <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
                 <h1 className="text-4xl font-bold">{creator.display_name}</h1>
-                <StaffRoleBadge role={creator.role} className="shrink-0" />
+                <StaffRoleBadge role={creator.role} isBot={creator.is_bot} className="shrink-0" />
               </div>
 
               {creator.bio && (

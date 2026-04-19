@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ApiKeyManagement from '@/components/ApiKeyManagement.jsx';
+import BotsManagement from '@/components/BotsManagement.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { Key, Trash2, Calendar, Activity, TrendingUp } from 'lucide-react';
@@ -203,6 +204,11 @@ const DeveloperDashboard = () => {
                 <h2 className="text-2xl font-bold mb-4">Generate New Key</h2>
                 <ApiKeyManagement onKeyCreated={fetchApiKeys} />
               </div>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-4">Bots</h2>
+              <BotsManagement />
             </div>
 
             {Object.keys(usageStats.byEndpoint).length > 0 && (
