@@ -67,24 +67,16 @@ const RepostDialog = ({ open, onOpenChange, contentId, onReposted, onUnreposted 
         quote_text: quote.trim() ? quote.trim() : null,
         overlay_text: overlay.trim() ? overlay.trim() : null,
       };
-      if (existing) {
-        const { error } = await supabase
-          .from('reposts')
-          .update({ quote_text: payload.quote_text, overlay_text: payload.overlay_text })
-          .eq('id', existing.id);
-        if (error) throw error;
-        toast.success('Repost updated');
-      } else {
-        const { data, error } = await supabase
-          .from('reposts')
-          .insert(payload)
-          .select('id')
-          .single();
-        if (error) throw error;
-        setExisting({ id: data.id, quote_text: payload.quote_text, overlay_text: payload.overlay_text });
-        toast.success('Reposted');
-        onReposted?.();
-      }
+      const { data, error } = await supabase
+        .from('reposts')
+        .upsert(payload, { onConflict: 'content_id,user_id' })
+        .select('id, quote_text, overlay_text')
+        .single();
+      if (error) throw error;
+      const wasNew = !existing;
+      setExisting(data);
+      toast.success(wasNew ? 'Reposted' : 'Repost updated');
+      if (wasNew) onReposted?.();
       onOpenChange(false);
     } catch (err) {
       console.error('Save repost failed:', err);
