@@ -13,6 +13,7 @@ import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import DeleteAccountDialog from '@/components/DeleteAccountDialog.jsx';
 import CollectionsManager from '@/components/CollectionsManager.jsx';
+import DevicesCard from '@/components/DevicesCard.jsx';
 import MarkdownContent from '@/components/MarkdownContent.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
@@ -207,10 +208,11 @@ const SettingsPage = () => {
             </p>
 
             <Tabs defaultValue="profile">
-              <TabsList className="grid grid-cols-4 w-full mb-6">
+              <TabsList className="grid grid-cols-5 w-full mb-6">
                 <TabsTrigger value="profile">Profile</TabsTrigger>
                 <TabsTrigger value="appearance">Appearance</TabsTrigger>
                 <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                <TabsTrigger value="devices">Devices</TabsTrigger>
                 <TabsTrigger value="account">Account</TabsTrigger>
               </TabsList>
 
@@ -413,6 +415,10 @@ const SettingsPage = () => {
                     </div>
                   ))}
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="devices">
+                <DevicesCard />
               </TabsContent>
 
               <TabsContent value="account">

@@ -3,6 +3,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/hcgi/api';
 const request = async (path, { method = 'GET', body, headers, ...rest } = {}) => {
 	const res = await fetch(`${API_URL}${path}`, {
 		method,
+		credentials: 'include',
 		headers: {
 			...(body ? { 'Content-Type': 'application/json' } : {}),
 			...(headers || {}),
@@ -30,7 +31,7 @@ const apiServerClient = {
 	post: (path, body, options) => request(path, { ...options, method: 'POST', body }),
 	put: (path, body, options) => request(path, { ...options, method: 'PUT', body }),
 	delete: (path, options) => request(path, { ...options, method: 'DELETE' }),
-	fetch: (path, options) => fetch(`${API_URL}${path}`, options),
+	fetch: (path, options) => fetch(`${API_URL}${path}`, { credentials: 'include', ...(options || {}) }),
 };
 
 export default apiServerClient;

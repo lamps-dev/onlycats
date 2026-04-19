@@ -15,9 +15,11 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
-import { Heart, DollarSign, Trash2, Bookmark, Pencil, Users } from 'lucide-react';
+import { Heart, DollarSign, Trash2, Bookmark, Pencil, Users, MessageSquare, Repeat2 } from 'lucide-react';
 import TipModal from './TipModal.jsx';
 import AddToCollectionDialog from './AddToCollectionDialog.jsx';
+import CommentsDialog from './CommentsDialog.jsx';
+import RepostDialog from './RepostDialog.jsx';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,6 +43,11 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
   const [likersOpen, setLikersOpen] = useState(false);
   const [likersLoading, setLikersLoading] = useState(false);
   const [likers, setLikers] = useState([]);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState(content.comment_count || 0);
+  const [repostOpen, setRepostOpen] = useState(false);
+  const [repostCount, setRepostCount] = useState(content.repost_count || 0);
+  const [hasReposted, setHasReposted] = useState(false);
 
   useEffect(() => {
     setCaptionText(content.caption ?? '');
@@ -49,6 +56,31 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
   useEffect(() => {
     setLikeCount(content.like_count || 0);
   }, [content.id, content.like_count]);
+
+  useEffect(() => {
+    setCommentCount(content.comment_count || 0);
+  }, [content.id, content.comment_count]);
+
+  useEffect(() => {
+    setRepostCount(content.repost_count || 0);
+  }, [content.id, content.repost_count]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser) {
+      setHasReposted(false);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('reposts')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', currentUser.id)
+      .eq('content_id', content.id)
+      .then(({ count }) => {
+        if (!cancelled) setHasReposted((count ?? 0) > 0);
+      });
+    return () => { cancelled = true; };
+  }, [content.id, isAuthenticated, currentUser]);
 
   useEffect(() => {
     if (!likersOpen) return;
@@ -333,6 +365,27 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => setCommentsOpen(true)}
+                aria-label="Comments"
+                title="Comments"
+              >
+                <MessageSquare className="w-4 h-4 mr-1" />
+                {commentCount}
+              </Button>
+              <Button
+                variant={hasReposted ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setRepostOpen(true)}
+                disabled={!isAuthenticated}
+                aria-label={hasReposted ? 'Edit repost' : 'Repost'}
+                title={hasReposted ? 'Edit repost' : 'Repost'}
+              >
+                <Repeat2 className="w-4 h-4 mr-1" />
+                {repostCount}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setTipModalOpen(true)}
                 disabled={!isAuthenticated}
               >
@@ -375,6 +428,21 @@ const ContentCard = ({ content, creator, onDelete, onCaptionChange }) => {
         onClose={() => setTipModalOpen(false)}
         creatorId={creatorId}
         creatorName={creatorName}
+      />
+
+      <CommentsDialog
+        open={commentsOpen}
+        onOpenChange={setCommentsOpen}
+        contentId={content.id}
+        onCountChange={(fn) => setCommentCount((n) => fn(n))}
+      />
+
+      <RepostDialog
+        open={repostOpen}
+        onOpenChange={setRepostOpen}
+        contentId={content.id}
+        onReposted={() => { setHasReposted(true); setRepostCount((n) => n + 1); }}
+        onUnreposted={() => { setHasReposted(false); setRepostCount((n) => Math.max(0, n - 1)); }}
       />
 
       {isPostOwner && (

@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabaseClient.js';
 import { selfHealRoleFor } from '../utils/roles.js';
 import { getActiveUserSanction, logUserIp } from '../utils/sanctions.js';
+import { touchDevice } from '../utils/devices.js';
 
 // Authenticates the caller, runs the owner self-heal, logs the request IP
 // against the user for moderation, and attaches any active sanction as
@@ -27,6 +28,20 @@ export const authenticate = async (req, res, next) => {
 	} catch (_) { /* already logged inside */ }
 
 	logUserIp(data.user.id, req.ip).catch(() => { /* logged inside */ });
+
+	try {
+		const result = await touchDevice(req, res, data.user.id);
+		if (result.revoked) {
+			return res.status(401).json({
+				error: 'This device was signed out. Please log in again.',
+				code: 'DEVICE_REVOKED',
+			});
+		}
+		if (result.tokenHash) req.deviceTokenHash = result.tokenHash;
+	} catch (err) {
+		// Device tracking is best-effort; log but don't block auth.
+		console.error('touchDevice failed:', err);
+	}
 
 	try {
 		const sanction = await getActiveUserSanction(data.user.id);

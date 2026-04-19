@@ -30,24 +30,25 @@ const loadProfile = async (userId) => {
 // 200 with sanction details (so the UI can render a banned screen).
 // Returns { role, sanction } where either field may be null.
 const fetchServerAccount = async (accessToken) => {
-	if (!accessToken) return { role: null, sanction: null };
+	if (!accessToken) return { role: null, sanction: null, deviceRevoked: false };
 	try {
 		const res = await apiServerClient.fetch('/account/me', {
 			headers: { Authorization: `Bearer ${accessToken}` },
 		});
 		if (!res.ok) {
-			// 403 with code IP_BANNED is possible too — propagate via sanction
-			// so the UI can show the right message.
 			try {
 				const body = await res.json();
-				if (body?.sanction) return { role: null, sanction: body.sanction };
+				if (body?.code === 'DEVICE_REVOKED') {
+					return { role: null, sanction: null, deviceRevoked: true };
+				}
+				if (body?.sanction) return { role: null, sanction: body.sanction, deviceRevoked: false };
 			} catch (_) { /* ignore */ }
-			return { role: null, sanction: null };
+			return { role: null, sanction: null, deviceRevoked: false };
 		}
 		const body = await res.json();
-		return { role: body?.role ?? null, sanction: body?.sanction ?? null };
+		return { role: body?.role ?? null, sanction: body?.sanction ?? null, deviceRevoked: false };
 	} catch (_) {
-		return { role: null, sanction: null };
+		return { role: null, sanction: null, deviceRevoked: false };
 	}
 };
 
@@ -100,6 +101,10 @@ export const AuthProvider = ({ children }) => {
 					fetchServerAccount(session?.access_token),
 				]);
 				if (!cancelled) {
+					if (account.deviceRevoked) {
+						await supabase.auth.signOut();
+						return;
+					}
 					const merged = mergeUserWithProfile(user, profile, account.sanction);
 					if (merged && account.role) merged.role = account.role;
 					setCurrentUser(merged);
@@ -165,6 +170,9 @@ export const AuthProvider = ({ children }) => {
 	}, []);
 
 	const logout = useCallback(async () => {
+		try {
+			await apiServerClient.fetch('/devices/sign-out', { method: 'POST' });
+		} catch (_) { /* best-effort cookie clear */ }
 		await supabase.auth.signOut();
 	}, []);
 
@@ -174,6 +182,10 @@ export const AuthProvider = ({ children }) => {
 			loadProfile(session?.user?.id),
 			fetchServerAccount(session?.access_token),
 		]);
+		if (account.deviceRevoked) {
+			await supabase.auth.signOut();
+			return;
+		}
 		const merged = mergeUserWithProfile(session?.user, profile, account.sanction);
 		if (merged && account.role) merged.role = account.role;
 		setCurrentUser(merged);
