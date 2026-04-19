@@ -16,7 +16,7 @@ import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
 const CAPTION_MAX_LEN = 2000;
 
-const FeedItem = ({ item, muted, onToggleMute }) => {
+const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
   const { content, creator, repost } = item;
   const { currentUser, isAuthenticated } = useAuth();
   const rootRef = useRef(null);
@@ -53,14 +53,24 @@ const FeedItem = ({ item, muted, onToggleMute }) => {
     if (!v || !isVideo) return;
     if (isActive && !paused) {
       v.muted = muted;
-      v.play().catch(() => {});
+      const p = v.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Browser blocked autoplay with sound — fall back to muted and retry.
+          if (!v.muted) {
+            v.muted = true;
+            onAutoplayBlocked?.();
+            v.play().catch(() => {});
+          }
+        });
+      }
     } else {
       v.pause();
       if (!isActive) {
         try { v.currentTime = 0; } catch (_) { /* ignore */ }
       }
     }
-  }, [isActive, paused, muted, isVideo]);
+  }, [isActive, paused, muted, isVideo, onAutoplayBlocked]);
 
   useEffect(() => {
     const v = videoRef.current;

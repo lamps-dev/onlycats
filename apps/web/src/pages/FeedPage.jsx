@@ -43,7 +43,7 @@ const FeedPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const autoRefreshInterval = useRef(null);
 
   const fetchFeed = useCallback(async (silent = false) => {
@@ -165,6 +165,7 @@ const FeedPage = () => {
                 item={item}
                 muted={muted}
                 onToggleMute={() => setMuted((m) => !m)}
+                onAutoplayBlocked={() => setMuted(true)}
               />
             ))}
           </div>
