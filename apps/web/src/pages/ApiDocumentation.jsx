@@ -349,6 +349,436 @@ const photo = await response.json();`}
               </section>
 
               <section>
+                <h2 className="text-3xl font-bold mb-4">Bots</h2>
+
+                <Card className="p-6 mb-6">
+                  <p className="text-muted-foreground leading-relaxed mb-4">
+                    Bots are automated accounts owned by a developer. Each bot has its own profile with a
+                    <code className="code-inline mx-1">BOT</code> badge and can post content programmatically.
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Key className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium mb-1">Token Authentication</p>
+                        <p className="text-sm text-muted-foreground">Bot tokens use the <code className="code-inline">ocb_</code> prefix</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-secondary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-5 h-5 text-secondary" />
+                      </div>
+                      <div>
+                        <p className="font-medium mb-1">50 requests/hour per bot</p>
+                        <p className="text-sm text-muted-foreground">Up to 5 bots per user account</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-muted/50 rounded-xl p-4 border">
+                    <p className="text-sm font-medium mb-2">Creating a Bot</p>
+                    <p className="text-sm text-muted-foreground">
+                      Create and manage bots from the Developer Dashboard. Creating a bot returns a one-time token with
+                      the prefix <code className="code-inline">ocb_</code>. Store it like a password &mdash; it will never
+                      be shown again. Rotate to issue a new one.
+                    </p>
+                  </div>
+                </Card>
+
+                <Card className="p-6 mb-6">
+                  <p className="text-sm font-medium mb-2">Authentication Header</p>
+                  <pre className="code-block mb-4">
+                    <code>Authorization: Bearer ocb_YOUR_BOT_TOKEN</code>
+                  </pre>
+                  <p className="text-sm font-medium mb-2">Rate Limit Headers</p>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Every response includes <code className="code-inline">X-RateLimit-Limit</code>,
+                    <code className="code-inline mx-1">X-RateLimit-Remaining</code>, and
+                    <code className="code-inline">X-RateLimit-Window</code>. When you exceed the limit, the
+                    <code className="code-inline mx-1">Retry-After</code> header is returned alongside a
+                    <code className="code-inline">429</code>.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Spam rule: posting the same caption twice within one hour returns
+                    <code className="code-inline mx-1">429 SPAM_DUPLICATE</code>.
+                  </p>
+                </Card>
+
+                <h3 className="text-2xl font-bold mb-4">Bot Endpoints</h3>
+
+                <div className="space-y-6">
+                  <Card className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-lg">GET</span>
+                      <code className="font-mono text-sm">/bot/v1/me</code>
+                    </div>
+
+                    <p className="text-muted-foreground mb-4">
+                      Returns the authenticated bot's profile.
+                    </p>
+
+                    <Tabs defaultValue="response" className="mb-4">
+                      <TabsList>
+                        <TabsTrigger value="response">Response</TabsTrigger>
+                        <TabsTrigger value="curl">cURL</TabsTrigger>
+                        <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="response" className="mt-4">
+                        <p className="text-sm font-medium mb-2">Response Schema</p>
+                        <pre className="code-block">
+{`{
+  "bot": {
+    "id": "uuid",
+    "display_name": "string",
+    "avatar_url": "string | null"
+  }
+}`}
+                        </pre>
+                      </TabsContent>
+
+                      <TabsContent value="curl" className="mt-4">
+                        <div className="relative">
+                          <pre className="code-block">
+{`curl -X GET https://onlycats-api.vercel.app/bot/v1/me \\
+  -H "Authorization: Bearer ocb_YOUR_TOKEN"`}
+                          </pre>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => copyToClipboard('curl -X GET https://onlycats-api.vercel.app/bot/v1/me \\\n  -H "Authorization: Bearer ocb_YOUR_TOKEN"')}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="javascript" className="mt-4">
+                        <div className="relative">
+                          <pre className="code-block">
+{`const response = await fetch('https://onlycats-api.vercel.app/bot/v1/me', {
+  headers: {
+    'Authorization': 'Bearer ocb_YOUR_TOKEN'
+  }
+});
+const { bot } = await response.json();`}
+                          </pre>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => copyToClipboard("const response = await fetch('https://onlycats-api.vercel.app/bot/v1/me', {\n  headers: {\n    'Authorization': 'Bearer ocb_YOUR_TOKEN'\n  }\n});\nconst { bot } = await response.json();")}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </Card>
+
+                  <Card className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="px-3 py-1 bg-secondary/10 text-secondary text-sm font-medium rounded-lg">POST</span>
+                      <code className="font-mono text-sm">/bot/v1/uploads/sign</code>
+                    </div>
+
+                    <p className="text-muted-foreground mb-4">
+                      Request a presigned R2 upload URL. PUT the file to <code className="code-inline">uploadUrl</code>
+                      <span> </span>within 5 minutes, then use <code className="code-inline">publicUrl</code> as
+                      <code className="code-inline mx-1">file_url</code> in <code className="code-inline">POST /bot/v1/posts</code>.
+                    </p>
+
+                    <Tabs defaultValue="request" className="mb-4">
+                      <TabsList>
+                        <TabsTrigger value="request">Request</TabsTrigger>
+                        <TabsTrigger value="response">Response</TabsTrigger>
+                        <TabsTrigger value="curl">cURL</TabsTrigger>
+                        <TabsTrigger value="errors">Errors</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="request" className="mt-4">
+                        <p className="text-sm font-medium mb-2">Request Body</p>
+                        <pre className="code-block">
+{`{
+  "contentType": "image/jpeg" | "image/png" | "image/gif"
+                | "image/webp" | "video/mp4" | "video/webm",
+  "size": 1234567  // optional, max 20 MB
+}`}
+                        </pre>
+                      </TabsContent>
+
+                      <TabsContent value="response" className="mt-4">
+                        <p className="text-sm font-medium mb-2">Response Schema</p>
+                        <pre className="code-block">
+{`{
+  "uploadUrl": "string",
+  "publicUrl": "string",
+  "key": "string"
+}`}
+                        </pre>
+                      </TabsContent>
+
+                      <TabsContent value="curl" className="mt-4">
+                        <div className="relative">
+                          <pre className="code-block">
+{`curl -X POST https://onlycats-api.vercel.app/bot/v1/uploads/sign \\
+  -H "Authorization: Bearer ocb_YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"contentType":"image/jpeg","size":204800}'`}
+                          </pre>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => copyToClipboard('curl -X POST https://onlycats-api.vercel.app/bot/v1/uploads/sign \\\n  -H "Authorization: Bearer ocb_YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"contentType":"image/jpeg","size":204800}\'')}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="errors" className="mt-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">400</span>
+                            <div>
+                              <p className="font-medium"><code className="code-inline">BAD_TYPE</code></p>
+                              <p className="text-sm text-muted-foreground">Unsupported content type.</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-3">
+                            <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">400</span>
+                            <div>
+                              <p className="font-medium"><code className="code-inline">TOO_LARGE</code></p>
+                              <p className="text-sm text-muted-foreground">File exceeds the 20 MB limit.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </Card>
+
+                  <Card className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="px-3 py-1 bg-secondary/10 text-secondary text-sm font-medium rounded-lg">POST</span>
+                      <code className="font-mono text-sm">/bot/v1/posts</code>
+                    </div>
+
+                    <p className="text-muted-foreground mb-4">
+                      Create a post as this bot.
+                    </p>
+
+                    <Tabs defaultValue="request" className="mb-4">
+                      <TabsList>
+                        <TabsTrigger value="request">Request</TabsTrigger>
+                        <TabsTrigger value="response">Response</TabsTrigger>
+                        <TabsTrigger value="curl">cURL</TabsTrigger>
+                        <TabsTrigger value="errors">Errors</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="request" className="mt-4">
+                        <p className="text-sm font-medium mb-2">Request Body</p>
+                        <pre className="code-block">
+{`{
+  "file_url": "string",         // required
+  "caption": "string"           // optional, max 2000 chars
+}`}
+                        </pre>
+                      </TabsContent>
+
+                      <TabsContent value="response" className="mt-4">
+                        <p className="text-sm font-medium mb-2">Response Schema (201 Created)</p>
+                        <pre className="code-block">
+{`{
+  "post": {
+    "id": "uuid",
+    "caption": "string | null",
+    "file_url": "string",
+    "created_at": "iso8601",
+    "like_count": 0,
+    "tip_count": 0
+  }
+}`}
+                        </pre>
+                      </TabsContent>
+
+                      <TabsContent value="curl" className="mt-4">
+                        <div className="relative">
+                          <pre className="code-block">
+{`curl -X POST https://onlycats-api.vercel.app/bot/v1/posts \\
+  -H "Authorization: Bearer ocb_YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"file_url":"https://cdn.onlycats.example/cats/abc.jpg","caption":"Morning stretch"}'`}
+                          </pre>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => copyToClipboard('curl -X POST https://onlycats-api.vercel.app/bot/v1/posts \\\n  -H "Authorization: Bearer ocb_YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"file_url":"https://cdn.onlycats.example/cats/abc.jpg","caption":"Morning stretch"}\'')}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="errors" className="mt-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">400</span>
+                            <div>
+                              <p className="font-medium"><code className="code-inline">BAD_REQUEST</code></p>
+                              <p className="text-sm text-muted-foreground">Missing or invalid fields.</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-3">
+                            <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">429</span>
+                            <div>
+                              <p className="font-medium"><code className="code-inline">SPAM_DUPLICATE</code></p>
+                              <p className="text-sm text-muted-foreground">Same caption posted within the last hour.</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-3">
+                            <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">429</span>
+                            <div>
+                              <p className="font-medium"><code className="code-inline">RATE_LIMITED</code></p>
+                              <p className="text-sm text-muted-foreground">Bot exceeded 50 requests/hour. See <code className="code-inline">Retry-After</code>.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </Card>
+
+                  <Card className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg">DELETE</span>
+                      <code className="font-mono text-sm">/bot/v1/posts/:id</code>
+                    </div>
+
+                    <p className="text-muted-foreground mb-4">
+                      Deletes a post owned by this bot. Returns <code className="code-inline">204 No Content</code> on success.
+                    </p>
+
+                    <Tabs defaultValue="curl" className="mb-4">
+                      <TabsList>
+                        <TabsTrigger value="curl">cURL</TabsTrigger>
+                        <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="curl" className="mt-4">
+                        <div className="relative">
+                          <pre className="code-block">
+{`curl -X DELETE https://onlycats-api.vercel.app/bot/v1/posts/POST_ID \\
+  -H "Authorization: Bearer ocb_YOUR_TOKEN"`}
+                          </pre>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => copyToClipboard('curl -X DELETE https://onlycats-api.vercel.app/bot/v1/posts/POST_ID \\\n  -H "Authorization: Bearer ocb_YOUR_TOKEN"')}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="javascript" className="mt-4">
+                        <div className="relative">
+                          <pre className="code-block">
+{`await fetch('https://onlycats-api.vercel.app/bot/v1/posts/' + postId, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer ocb_YOUR_TOKEN'
+  }
+});`}
+                          </pre>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => copyToClipboard("await fetch('https://onlycats-api.vercel.app/bot/v1/posts/' + postId, {\n  method: 'DELETE',\n  headers: {\n    'Authorization': 'Bearer ocb_YOUR_TOKEN'\n  }\n});")}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </Card>
+                </div>
+
+                <h3 className="text-2xl font-bold mt-8 mb-4">Quickstart</h3>
+                <Card className="p-6 mb-6">
+                  <p className="text-muted-foreground mb-4">
+                    Create your first bot post with a single request:
+                  </p>
+                  <div className="relative">
+                    <pre className="code-block">
+{`curl -X POST https://onlycats-api.vercel.app/bot/v1/posts \\
+  -H "Authorization: Bearer ocb_YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"file_url":"https://cdn.onlycats.example/cats/abc.jpg","caption":"Morning stretch"}'`}
+                    </pre>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => copyToClipboard('curl -X POST https://onlycats-api.vercel.app/bot/v1/posts \\\n  -H "Authorization: Bearer ocb_YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"file_url":"https://cdn.onlycats.example/cats/abc.jpg","caption":"Morning stretch"}\'')}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </Card>
+
+                <h3 className="text-2xl font-bold mb-4">Python Library</h3>
+                <Card className="p-6 mb-6">
+                  <p className="text-muted-foreground mb-4">
+                    A first-party Python library is available as <code className="code-inline">onlycats-bot</code>.
+                  </p>
+                  <pre className="code-block mb-4">
+                    <code>pip install onlycats-bot</code>
+                  </pre>
+                  <pre className="code-block">
+{`from onlycats_bot import Client
+
+client = Client(token="ocb_YOUR_TOKEN")
+client.post(file_path="cat.jpg", caption="Morning stretch")`}
+                  </pre>
+                </Card>
+
+                <h3 className="text-2xl font-bold mb-4">Auth Errors</h3>
+                <Card className="p-6">
+                  <p className="text-muted-foreground mb-4">
+                    These errors apply to every bot endpoint:
+                  </p>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">401</span>
+                      <div>
+                        <p className="font-medium"><code className="code-inline">UNAUTHORIZED</code></p>
+                        <p className="text-sm text-muted-foreground">Missing token in the <code className="code-inline">Authorization</code> header.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">401</span>
+                      <div>
+                        <p className="font-medium"><code className="code-inline">INVALID_TOKEN</code></p>
+                        <p className="text-sm text-muted-foreground">Token has been revoked or is not recognized.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-lg flex-shrink-0">429</span>
+                      <div>
+                        <p className="font-medium"><code className="code-inline">RATE_LIMITED</code></p>
+                        <p className="text-sm text-muted-foreground">Bot exceeded 50 requests/hour. Check <code className="code-inline">Retry-After</code>.</p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </section>
+
+              <section>
                 <h2 className="text-3xl font-bold mb-4">API Explorer</h2>
                 <Card className="p-6">
                   <p className="text-muted-foreground mb-4">

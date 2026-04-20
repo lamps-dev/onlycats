@@ -7,9 +7,19 @@ import FeedItem from '@/components/FeedItem.jsx';
 import ContentUpload from '@/components/ContentUpload.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Heart, RefreshCw, AlertCircle, Plus } from 'lucide-react';
+import { Heart, RefreshCw, AlertCircle, Plus, Shuffle } from 'lucide-react';
 
-const mergeSorted = (posts, reposts) => {
+const RANDOMIZE_STORAGE_KEY = 'onlycats.feed.randomize';
+
+const shuffleInPlace = (arr) => {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
+const mergeFeed = (posts, reposts, { randomize = false } = {}) => {
   const postItems = posts.map((p) => ({
     key: `post:${p.id}`,
     sortAt: p.created_at,
@@ -32,9 +42,9 @@ const mergeSorted = (posts, reposts) => {
         reposter: r.reposter,
       },
     }));
-  return [...postItems, ...repostItems].sort(
-    (a, b) => new Date(b.sortAt) - new Date(a.sortAt),
-  );
+  const merged = [...postItems, ...repostItems];
+  if (randomize) return shuffleInPlace(merged);
+  return merged.sort((a, b) => new Date(b.sortAt) - new Date(a.sortAt));
 };
 
 const FeedPage = () => {
@@ -44,7 +54,20 @@ const FeedPage = () => {
   const [error, setError] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [randomize, setRandomize] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = window.localStorage.getItem(RANDOMIZE_STORAGE_KEY);
+    return stored === null ? true : stored === '1';
+  });
+  const randomizeRef = useRef(randomize);
   const autoRefreshInterval = useRef(null);
+
+  useEffect(() => {
+    randomizeRef.current = randomize;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(RANDOMIZE_STORAGE_KEY, randomize ? '1' : '0');
+    }
+  }, [randomize]);
 
   const fetchFeed = useCallback(async (silent = false) => {
     if (!currentUser) return;
@@ -84,7 +107,7 @@ const FeedPage = () => {
       if (postsRes.error) throw postsRes.error;
       if (repostsRes.error) throw repostsRes.error;
 
-      setFeedItems(mergeSorted(postsRes.data ?? [], repostsRes.data ?? []));
+      setFeedItems(mergeFeed(postsRes.data ?? [], repostsRes.data ?? [], { randomize: randomizeRef.current }));
       setError(null);
     } catch (err) {
       console.error('Failed to fetch feed:', err);
@@ -121,6 +144,17 @@ const FeedPage = () => {
           <Button variant="secondary" size="sm" onClick={() => fetchFeed()} disabled={loading} className="shadow-lg">
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
+          </Button>
+          <Button
+            variant={randomize ? 'default' : 'secondary'}
+            size="sm"
+            onClick={() => setRandomize((v) => !v)}
+            aria-pressed={randomize}
+            title={randomize ? 'Shuffle on — refreshes will randomize the order' : 'Shuffle off — newest first'}
+            className="shadow-lg"
+          >
+            <Shuffle className="w-4 h-4 mr-2" />
+            {randomize ? 'Shuffle: On' : 'Shuffle: Off'}
           </Button>
         </div>
 

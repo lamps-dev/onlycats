@@ -12,7 +12,17 @@
       "Bash(node --check src/routes/bots.js)",
       "Bash(node --check src/routes/bot-api.js)",
       "Bash(node --check src/middleware/botAuthMiddleware.js)",
-      "Bash(node --check src/utils/bots.js)"
+      "Bash(node --check src/utils/bots.js)",
+      "Bash(python -c \"import ast, pathlib; [ast.parse\\(p.read_text\\(encoding='utf-8'\\)\\) for p in pathlib.Path\\('onlycats_bot'\\).glob\\('*.py'\\)]; print\\('syntax ok'\\)\")",
+      "Bash(python -m pip install --quiet build)",
+      "Bash(python -m build --sdist --wheel --outdir dist/ .)",
+      "Bash(python -m pip install build)",
+      "Bash(python -m pip show build)",
+      "WebFetch(domain:onlycats.info)",
+      "WebFetch(domain:api.onlycats.info)",
+      "mcp__claude_ai_Vercel__list_teams",
+      "mcp__claude_ai_Vercel__list_projects",
+      "mcp__claude_ai_Vercel__get_project"
     ]
   }
 }
