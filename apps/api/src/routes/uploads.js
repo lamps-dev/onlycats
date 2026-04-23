@@ -40,7 +40,10 @@ router.post('/sign', requireUser, blockIfTimedOut, async (req, res, next) => {
 		if (!ALLOWED_TYPES.has(contentType)) {
 			return res.status(400).json({ error: 'Unsupported content type' });
 		}
-		if (typeof size === 'number' && size > MAX_BYTES) {
+		if (!Number.isFinite(size) || size <= 0) {
+			return res.status(400).json({ error: 'Valid file size is required' });
+		}
+		if (size > MAX_BYTES) {
 			return res.status(400).json({ error: 'File too large (max 20MB)' });
 		}
 
@@ -51,6 +54,7 @@ router.post('/sign', requireUser, blockIfTimedOut, async (req, res, next) => {
 			Bucket: R2_BUCKET_NAME,
 			Key: key,
 			ContentType: contentType,
+			ContentLength: size,
 		});
 
 		const uploadUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
