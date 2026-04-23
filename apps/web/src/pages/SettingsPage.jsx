@@ -156,8 +156,8 @@ const SettingsPage = () => {
       const { error } = await supabase
         .from('profiles')
         .update({
-          bio: bio.trim() || null,
-          about_me: aboutMe.trim() || null,
+          bio: bio.length > 0 ? bio : null,
+          about_me: aboutMe.length > 0 ? aboutMe : null,
           country: country.trim() || null,
           location: location.trim() || null,
           social_links: cleanedSocials,
@@ -271,10 +271,8 @@ const SettingsPage = () => {
                       id="bio"
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
-                      maxLength={160}
                       placeholder="One-line tagline shown under your name"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">{bio.length}/160</p>
                   </div>
 
                   <div>
@@ -283,11 +281,9 @@ const SettingsPage = () => {
                       id="about"
                       value={aboutMe}
                       onChange={(e) => setAboutMe(e.target.value)}
-                      maxLength={1000}
                       rows={5}
                       placeholder="Tell the world about you and your cats (Markdown supported)"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">{aboutMe.length}/1000</p>
                     {aboutMe.trim() && (
                       <div className="mt-3 rounded-xl border bg-card p-3">
                         <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>

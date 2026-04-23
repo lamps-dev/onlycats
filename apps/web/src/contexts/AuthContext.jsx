@@ -148,6 +148,9 @@ export const AuthProvider = ({ children }) => {
 		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
 		const emailRedirectTo =
 			typeof window !== 'undefined' ? `${window.location.origin}/discover` : undefined;
+
+		await apiServerClient.post('/account/signup-eligibility');
+
 		const { data, error } = await supabase.auth.signUp({
 			email: normalizedEmail,
 			password,
@@ -157,6 +160,11 @@ export const AuthProvider = ({ children }) => {
 			},
 		});
 		if (error) throw error;
+
+		if (data?.user?.id) {
+			await apiServerClient.post('/account/claim-signup-ip', { userId: data.user.id });
+		}
+
 		return data;
 	}, []);
 

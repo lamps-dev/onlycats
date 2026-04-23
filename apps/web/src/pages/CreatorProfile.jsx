@@ -105,6 +105,37 @@ const CreatorProfile = () => {
 
   useEffect(() => { fetchCreatorData(); }, [fetchCreatorData]);
 
+
+  useEffect(() => {
+    if (!creatorId) return undefined;
+    const channel = supabase
+      .channel(`creator-profile-${creatorId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${creatorId}` },
+        ({ new: nextProfile }) => {
+          setCreator((prev) => (prev ? {
+            ...prev,
+            display_name: nextProfile.display_name,
+            bio: nextProfile.bio,
+            about_me: nextProfile.about_me,
+            avatar_url: nextProfile.avatar_url,
+            follower_count: nextProfile.follower_count,
+            country: nextProfile.country,
+            location: nextProfile.location,
+            social_links: nextProfile.social_links,
+            role: nextProfile.role,
+            is_bot: nextProfile.is_bot,
+          } : prev));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [creatorId]);
+
   useEffect(() => {
     if (!creator || !currentUser) {
       setIsFollowing(false);
@@ -220,7 +251,7 @@ const CreatorProfile = () => {
                 <TaglineText
                   text={creator.bio}
                   isOwnerTagline={creator.role === 'owner'}
-                  className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto"
+                  className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto whitespace-break-spaces break-words"
                 />
               )}
 
