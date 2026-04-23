@@ -61,7 +61,6 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/000" element={<SecretPage />} />
-            <Route path="/???" element={<SecretPage />} />
             <Route path="/:creatorId" element={<CreatorProfile />} />
           </Routes>
           <Toaster />
