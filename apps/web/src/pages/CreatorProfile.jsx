@@ -119,33 +119,69 @@ const CreatorProfile = () => {
 
   useEffect(() => {
     if (!creatorId) return undefined;
+
+    const applyProfile = (nextProfile) => {
+      if (!nextProfile) return;
+      setCreator((prev) => (prev ? {
+        ...prev,
+        display_name: nextProfile.display_name,
+        bio: nextProfile.bio,
+        about_me: nextProfile.about_me,
+        avatar_url: nextProfile.avatar_url,
+        follower_count: nextProfile.follower_count,
+        country: nextProfile.country,
+        location: nextProfile.location,
+        social_links: nextProfile.social_links,
+        role: nextProfile.role,
+        is_bot: nextProfile.is_bot,
+      } : prev));
+    };
+
     const channel = supabase
       .channel(`creator-profile-${creatorId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${creatorId}` },
-        ({ new: nextProfile }) => {
-          setCreator((prev) => (prev ? {
-            ...prev,
-            display_name: nextProfile.display_name,
-            bio: nextProfile.bio,
-            about_me: nextProfile.about_me,
-            avatar_url: nextProfile.avatar_url,
-            follower_count: nextProfile.follower_count,
-            country: nextProfile.country,
-            location: nextProfile.location,
-            social_links: nextProfile.social_links,
-            role: nextProfile.role,
-            is_bot: nextProfile.is_bot,
-          } : prev));
-        },
+        ({ new: nextProfile }) => applyProfile(nextProfile),
       )
       .subscribe();
 
+    let cancelled = false;
+    const pollProfile = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role, is_bot')
+        .eq('id', creatorId)
+        .maybeSingle();
+      if (!cancelled) applyProfile(data);
+    };
+    const interval = setInterval(pollProfile, 5000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') pollProfile();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
   }, [creatorId]);
+
+  useEffect(() => {
+    if (!creator || !currentUser || creator.id !== currentUser.id) return;
+    setCreator((prev) => (prev ? {
+      ...prev,
+      display_name: currentUser.display_name ?? prev.display_name,
+      bio: currentUser.bio ?? null,
+      about_me: currentUser.about_me ?? null,
+      avatar_url: currentUser.avatar_url ?? null,
+      country: currentUser.country ?? null,
+      location: currentUser.location ?? null,
+      social_links: Array.isArray(currentUser.social_links) ? currentUser.social_links : prev.social_links,
+    } : prev));
+  }, [currentUser, creator?.id]);
 
   useEffect(() => {
     if (!creator || !currentUser) {
