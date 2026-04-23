@@ -147,15 +147,22 @@ const CreatorProfile = () => {
       .subscribe();
 
     let cancelled = false;
+    let inflight = false;
     const pollProfile = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role, is_bot')
-        .eq('id', creatorId)
-        .maybeSingle();
-      if (!cancelled) applyProfile(data);
+      if (inflight || cancelled) return;
+      inflight = true;
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, display_name, bio, about_me, avatar_url, follower_count, country, location, social_links, role, is_bot')
+          .eq('id', creatorId)
+          .maybeSingle();
+        if (!cancelled) applyProfile(data);
+      } finally {
+        inflight = false;
+      }
     };
-    const interval = setInterval(pollProfile, 5000);
+    const interval = setInterval(pollProfile, 400);
     const onVisible = () => {
       if (document.visibilityState === 'visible') pollProfile();
     };
