@@ -39,6 +39,9 @@ const DEFAULT_PREFS = { tips: true, follows: true, likes: false, email: false };
 
 const AVATAR_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const BIO_MAX_LENGTH = 160;
+const ABOUT_ME_MAX_LENGTH = 1000;
+const MAX_SOCIAL_LINKS = 5;
 
 const SettingsPage = () => {
   const navigate = useNavigate();
@@ -74,7 +77,27 @@ const SettingsPage = () => {
     [socials],
   );
 
-  const addSocial    = () => setSocials((s) => [...s, { platform: 'twitter', url: '' }]);
+  const clampText = (value, maxLength) => String(value || '').slice(0, maxLength);
+
+  const withLimit = (setter, maxLength, label) => (value) => {
+    const incomingValue = String(value || '');
+    const nextValue = clampText(incomingValue, maxLength);
+    if (incomingValue.length > maxLength) {
+      toast.error(`${label} must be ${maxLength} characters or less.`);
+    }
+    setter(nextValue);
+  };
+
+  const updateBio = withLimit(setBio, BIO_MAX_LENGTH, 'Short bio');
+  const updateAboutMe = withLimit(setAboutMe, ABOUT_ME_MAX_LENGTH, 'About me');
+
+  const addSocial    = () => setSocials((s) => {
+    if (s.length >= MAX_SOCIAL_LINKS) {
+      toast.error(`You can add up to ${MAX_SOCIAL_LINKS} social links.`);
+      return s;
+    }
+    return [...s, { platform: 'twitter', url: '' }];
+  });
   const removeSocial = (i) => setSocials((s) => s.filter((_, idx) => idx !== i));
   const updateSocial = (i, patch) => setSocials((s) => s.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
@@ -145,8 +168,18 @@ const SettingsPage = () => {
 
   const saveProfile = async () => {
     if (!currentUser) return;
+    if (cleanedSocials.length > MAX_SOCIAL_LINKS) {
+      toast.error(`You can add up to ${MAX_SOCIAL_LINKS} social links.`);
+      return;
+    }
     for (const s of cleanedSocials) {
-      try { new URL(s.url); } catch {
+      try {
+        const parsed = new URL(s.url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          toast.error(`Invalid URL protocol: ${s.url}`);
+          return;
+        }
+      } catch {
         toast.error(`Invalid URL: ${s.url}`);
         return;
       }
@@ -156,11 +189,11 @@ const SettingsPage = () => {
       const { error } = await supabase
         .from('profiles')
         .update({
-          bio: bio.trim() || null,
-          about_me: aboutMe.trim() || null,
+          bio: clampText(bio.trim(), BIO_MAX_LENGTH) || null,
+          about_me: clampText(aboutMe.trim(), ABOUT_ME_MAX_LENGTH) || null,
           country: country.trim() || null,
           location: location.trim() || null,
-          social_links: cleanedSocials,
+          social_links: cleanedSocials.slice(0, MAX_SOCIAL_LINKS),
         })
         .eq('id', currentUser.id);
       if (error) throw error;
@@ -270,11 +303,11 @@ const SettingsPage = () => {
                     <Input
                       id="bio"
                       value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      maxLength={160}
+                      onChange={(e) => updateBio(e.target.value)}
+                      maxLength={BIO_MAX_LENGTH}
                       placeholder="One-line tagline shown under your name"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">{bio.length}/160</p>
+                    <p className="text-xs text-muted-foreground mt-1">{bio.length}/{BIO_MAX_LENGTH}</p>
                   </div>
 
                   <div>
@@ -282,12 +315,12 @@ const SettingsPage = () => {
                     <Textarea
                       id="about"
                       value={aboutMe}
-                      onChange={(e) => setAboutMe(e.target.value)}
-                      maxLength={1000}
+                      onChange={(e) => updateAboutMe(e.target.value)}
+                      maxLength={ABOUT_ME_MAX_LENGTH}
                       rows={5}
                       placeholder="Tell the world about you and your cats (Markdown supported)"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">{aboutMe.length}/1000</p>
+                    <p className="text-xs text-muted-foreground mt-1">{aboutMe.length}/{ABOUT_ME_MAX_LENGTH}</p>
                     {aboutMe.trim() && (
                       <div className="mt-3 rounded-xl border bg-card p-3">
                         <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>
@@ -310,10 +343,11 @@ const SettingsPage = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <Label>Social links</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={addSocial}>
+                      <Button type="button" variant="outline" size="sm" onClick={addSocial} disabled={socials.length >= MAX_SOCIAL_LINKS}>
                         <Plus className="w-4 h-4 mr-1" /> Add link
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-2">{cleanedSocials.length}/{MAX_SOCIAL_LINKS} links used</p>
                     {socials.length === 0 && (
                       <p className="text-sm text-muted-foreground">No links yet.</p>
                     )}
