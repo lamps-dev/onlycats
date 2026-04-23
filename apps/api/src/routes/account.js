@@ -8,6 +8,68 @@ import { getUserRole } from '../utils/roles.js';
 
 const router = Router();
 
+const getBearerToken = (req) => {
+	const header = req.headers.authorization || '';
+	if (!header.toLowerCase().startsWith('bearer ')) return null;
+	return header.slice(7).trim() || null;
+};
+
+const isAuthenticatedRequest = async (req) => {
+	const token = getBearerToken(req);
+	if (!token) return false;
+	const { data, error } = await supabase.auth.getUser(token);
+	return !error && !!data?.user;
+};
+
+// POST /account/signup-eligibility
+// Guard signup when caller is already logged in, and enforce 1-account-per-IP.
+router.post('/signup-eligibility', async (req, res, next) => {
+	try {
+		if (await isAuthenticatedRequest(req)) {
+			return res.status(409).json({ error: 'You are already logged in!' });
+		}
+
+		const ip = req.ip || null;
+		if (!ip) return res.status(400).json({ error: 'Could not determine IP address' });
+
+		const { data, error } = await supabase
+			.from('signup_ip_guard')
+			.select('ip')
+			.eq('ip', ip)
+			.maybeSingle();
+		if (error) return next(error);
+		if (data) return res.status(429).json({ error: 'An account has already been created from this IP address.' });
+
+		return res.json({ allowed: true });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// POST /account/claim-signup-ip
+// Called immediately after successful signup to reserve this IP.
+router.post('/claim-signup-ip', async (req, res, next) => {
+	try {
+		const ip = req.ip || null;
+		if (!ip) return res.status(400).json({ error: 'Could not determine IP address' });
+
+		const { userId } = req.body || {};
+		const { error } = await supabase
+			.from('signup_ip_guard')
+			.insert({ ip, first_user_id: userId || null });
+		if (error) {
+			if (error.code === '23505') {
+				return res.status(429).json({ error: 'An account has already been created from this IP address.' });
+			}
+			return next(error);
+		}
+
+		return res.status(201).json({ ok: true });
+	} catch (err) {
+		next(err);
+	}
+});
+
 // GET /account/me — returns { id, role, sanction? } for the caller. Used by
 // the frontend to decide whether to show admin/moderator UI, and to render a
 // banned/timeout screen when the caller has an active sanction. Uses bare
