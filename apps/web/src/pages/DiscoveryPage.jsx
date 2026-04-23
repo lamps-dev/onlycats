@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
@@ -17,23 +17,33 @@ const DiscoveryPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchCreators = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, display_name, bio, avatar_url, follower_count, role')
-        .order('follower_count', { ascending: false })
-        .limit(50);
-      if (error) {
-        console.error('Failed to fetch creators:', error);
-      } else {
-        setCreators(data ?? []);
-      }
-      setLoading(false);
-    };
-    fetchCreators();
+  const fetchCreators = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, display_name, bio, avatar_url, follower_count, role')
+      .order('follower_count', { ascending: false })
+      .limit(50);
+    if (error) {
+      console.error('Failed to fetch creators:', error);
+    } else {
+      setCreators(data ?? []);
+    }
+    if (!silent) setLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchCreators();
+    const interval = setInterval(() => fetchCreators({ silent: true }), 60000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchCreators({ silent: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchCreators]);
 
   const filteredCreators = creators.filter((creator) =>
     (creator.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()),

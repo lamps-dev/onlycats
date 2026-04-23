@@ -33,8 +33,8 @@ const CreatorProfile = () => {
 
   const isOwnProfile = !!(creator && currentUser && creator.id === currentUser.id);
 
-  const fetchCreatorData = useCallback(async () => {
-    setLoading(true);
+  const fetchCreatorData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const [
         { data: profile, error: profileErr },
@@ -97,13 +97,24 @@ const CreatorProfile = () => {
       setContent(merged);
     } catch (err) {
       console.error('Failed to fetch creator data:', err);
-      toast.error('Failed to load creator profile');
+      if (!silent) toast.error('Failed to load creator profile');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [creatorId]);
 
-  useEffect(() => { fetchCreatorData(); }, [fetchCreatorData]);
+  useEffect(() => {
+    fetchCreatorData();
+    const interval = setInterval(() => fetchCreatorData({ silent: true }), 45000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchCreatorData({ silent: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchCreatorData]);
 
 
   useEffect(() => {

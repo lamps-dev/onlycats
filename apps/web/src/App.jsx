@@ -19,6 +19,7 @@ import SettingsPage from './pages/SettingsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PrivacyPage from './pages/PrivacyPage.jsx';
 import ModerationPage from './pages/ModerationPage.jsx';
+import SecretPage from './pages/SecretPage.jsx';
 
 function App() {
   return (
@@ -59,6 +60,8 @@ function App() {
                 <ModerationPage />
               </ProtectedRoute>
             } />
+            <Route path="/000" element={<SecretPage />} />
+            <Route path="/???" element={<SecretPage />} />
             <Route path="/:creatorId" element={<CreatorProfile />} />
           </Routes>
           <Toaster />
