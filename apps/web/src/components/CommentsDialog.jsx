@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
 const MAX_LEN = 2000;
+const COMMENT_COOLDOWN_MS = 10_000;
 
 const buildTree = (rows) => {
   const byId = new Map();
@@ -187,6 +188,7 @@ const CommentsDialog = ({ open, onOpenChange, contentId, onCountChange }) => {
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
+  const [nextCommentAt, setNextCommentAt] = useState(0);
 
   const load = useCallback(async () => {
     if (!contentId) return;
@@ -233,6 +235,11 @@ const CommentsDialog = ({ open, onOpenChange, contentId, onCountChange }) => {
     }
     const trimmed = body.trim();
     if (!trimmed) return;
+    if (Date.now() < nextCommentAt) {
+      const waitSeconds = Math.max(1, Math.ceil((nextCommentAt - Date.now()) / 1000));
+      toast.error(`Please wait ${waitSeconds}s before commenting again.`);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('comments')
@@ -250,10 +257,15 @@ const CommentsDialog = ({ open, onOpenChange, contentId, onCountChange }) => {
         },
       };
       setRows((r) => [...r, newRow]);
+      setNextCommentAt(Date.now() + COMMENT_COOLDOWN_MS);
       onCountChange?.((n) => n + 1);
     } catch (err) {
       console.error('Post comment failed:', err);
-      toast.error(err.message || 'Failed to post comment');
+      if (err?.message?.toLowerCase().includes('between comments')) {
+        toast.error('You are commenting too quickly. Please wait a few seconds.');
+      } else {
+        toast.error(err.message || 'Failed to post comment');
+      }
     }
   };
 
