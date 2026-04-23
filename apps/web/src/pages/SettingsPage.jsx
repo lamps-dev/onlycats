@@ -189,8 +189,8 @@ const SettingsPage = () => {
       const { error } = await supabase
         .from('profiles')
         .update({
-          bio: clampText(bio.trim(), BIO_MAX_LENGTH) || null,
-          about_me: clampText(aboutMe.trim(), ABOUT_ME_MAX_LENGTH) || null,
+          bio: bio.length > 0 ? bio : null,
+          about_me: aboutMe.length > 0 ? aboutMe : null,
           country: country.trim() || null,
           location: location.trim() || null,
           social_links: cleanedSocials.slice(0, MAX_SOCIAL_LINKS),
@@ -303,11 +303,9 @@ const SettingsPage = () => {
                     <Input
                       id="bio"
                       value={bio}
-                      onChange={(e) => updateBio(e.target.value)}
-                      maxLength={BIO_MAX_LENGTH}
+                      onChange={(e) => setBio(e.target.value)}
                       placeholder="One-line tagline shown under your name"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">{bio.length}/{BIO_MAX_LENGTH}</p>
                   </div>
 
                   <div>
@@ -315,12 +313,10 @@ const SettingsPage = () => {
                     <Textarea
                       id="about"
                       value={aboutMe}
-                      onChange={(e) => updateAboutMe(e.target.value)}
-                      maxLength={ABOUT_ME_MAX_LENGTH}
+                      onChange={(e) => setAboutMe(e.target.value)}
                       rows={5}
                       placeholder="Tell the world about you and your cats (Markdown supported)"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">{aboutMe.length}/{ABOUT_ME_MAX_LENGTH}</p>
                     {aboutMe.trim() && (
                       <div className="mt-3 rounded-xl border bg-card p-3">
                         <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>

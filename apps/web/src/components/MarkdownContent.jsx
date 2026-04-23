@@ -7,7 +7,7 @@ const components = {
   h2: (props) => <h2 className="text-lg font-bold mt-4 mb-2" {...props} />,
   h3: (props) => <h3 className="text-base font-semibold mt-3 mb-2" {...props} />,
   h4: (props) => <h4 className="text-sm font-semibold mt-3 mb-1" {...props} />,
-  p:  (props) => <p className="mb-2 leading-relaxed whitespace-pre-wrap" {...props} />,
+  p:  (props) => <p className="mb-2 leading-relaxed whitespace-break-spaces" {...props} />,
   a:  ({ node, ...props }) => (
     <a
       {...props}
@@ -18,7 +18,7 @@ const components = {
   ),
   ul: (props) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
   ol: (props) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
-  li: (props) => <li className="leading-relaxed" {...props} />,
+  li: (props) => <li className="leading-relaxed whitespace-break-spaces" {...props} />,
   blockquote: (props) => (
     <blockquote className="border-l-2 border-muted-foreground/40 pl-3 italic text-muted-foreground my-2" {...props} />
   ),
