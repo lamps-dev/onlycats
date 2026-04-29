@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Route, Routes, BrowserRouter as Router } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider } from '@/contexts/AuthContext.jsx';
 import { ThemeProvider } from '@/contexts/ThemeContext.jsx';
 import { Toaster } from '@/components/ui/sonner';
@@ -64,6 +65,7 @@ function App() {
             <Route path="/:creatorId" element={<CreatorProfile />} />
           </Routes>
           <Toaster />
+          <Analytics />
         </AuthProvider>
       </ThemeProvider>
     </Router>
