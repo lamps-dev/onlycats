@@ -80,7 +80,12 @@ export const AuthProvider = ({ children }) => {
 		let cancelled = false;
 		let lastProfileUserId = null;
 		let oauthHandled = false;
-		const wasOAuthCallback = typeof window !== 'undefined' && window.location.hash.includes('access_token=');
+		// A recovery link also carries `access_token=` in the hash, but we must
+		// NOT auto-navigate to /discover for it — the user needs to land on
+		// /reset-password to set a new password. Exclude recovery here.
+		const hash = typeof window !== 'undefined' ? window.location.hash : '';
+		const isRecovery = hash.includes('type=recovery');
+		const wasOAuthCallback = hash.includes('access_token=') && !isRecovery;
 
 		const applySession = async (session) => {
 			if (cancelled) return;
@@ -168,6 +173,23 @@ export const AuthProvider = ({ children }) => {
 		return data;
 	}, []);
 
+	// Send a password-reset email. The link returns the user to /reset-password
+	// with a recovery token in the URL hash (handled by detectSessionInUrl).
+	const requestPasswordReset = useCallback(async (email) => {
+		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
+		const redirectTo =
+			typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+		const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
+		if (error) throw error;
+	}, []);
+
+	// Set a new password for the user. On the reset page the recovery token has
+	// already established a temporary session, so updateUser is authorized.
+	const updatePassword = useCallback(async (newPassword) => {
+		const { error } = await supabase.auth.updateUser({ password: newPassword });
+		if (error) throw error;
+	}, []);
+
 	const authWithDiscord = useCallback(async () => {
 		const { data, error } = await supabase.auth.signInWithOAuth({
 			provider: 'discord',
@@ -206,6 +228,8 @@ export const AuthProvider = ({ children }) => {
 			currentUser,
 			login,
 			signup,
+			requestPasswordReset,
+			updatePassword,
 			authWithDiscord,
 			logout,
 			refreshProfile,
@@ -217,7 +241,7 @@ export const AuthProvider = ({ children }) => {
 			isBanned: sanction?.kind === 'ban',
 			isTimedOut: sanction?.kind === 'timeout',
 		}),
-		[currentUser, login, signup, authWithDiscord, logout, refreshProfile, role, sanction],
+		[currentUser, login, signup, requestPasswordReset, updatePassword, authWithDiscord, logout, refreshProfile, role, sanction],
 	);
 
 	if (initialLoading) return <LoadingScreen />;

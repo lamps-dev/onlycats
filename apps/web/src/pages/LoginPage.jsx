@@ -103,7 +103,16 @@ const LoginPage = () => {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Password</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Password</label>
+                  <Link
+                    to="/forgot-password"
+                    state={{ email }}
+                    className="text-sm text-primary font-medium hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <Input
                   type="password"
                   placeholder="••••••••"
