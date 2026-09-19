@@ -2,52 +2,30 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import supabase from '@/lib/supabaseClient.js';
-import apiServerClient from '@/lib/apiServerClient.js';
-import { Heart, DollarSign, Trash2, Bookmark, Pencil, Users, MessageSquare, Repeat2 } from 'lucide-react';
-import TipModal from './TipModal.jsx';
-import AddToCollectionDialog from './AddToCollectionDialog.jsx';
+import { Heart, DollarSign, Users, MessageSquare, Repeat2 } from 'lucide-react';
 import CommentsDialog from './CommentsDialog.jsx';
-import RepostDialog from './RepostDialog.jsx';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext.jsx';
 import { formatDistanceToNow } from 'date-fns';
 import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
-const CAPTION_MAX_LEN = 2000;
-
-const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) => {
-  const { currentUser, isAuthenticated, isModerator, isOwner } = useAuth();
-  const [isLiked, setIsLiked] = useState(false);
+const ContentCard = ({ content, creator, repost }) => {
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
-  const [tipModalOpen, setTipModalOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [collectionOpen, setCollectionOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState('');
-  const [deleting, setDeleting] = useState(false);
   const [captionText, setCaptionText] = useState(content.caption ?? '');
-  const [captionEditOpen, setCaptionEditOpen] = useState(false);
-  const [captionDraft, setCaptionDraft] = useState('');
-  const [savingCaption, setSavingCaption] = useState(false);
   const [likersOpen, setLikersOpen] = useState(false);
   const [likersLoading, setLikersLoading] = useState(false);
   const [likers, setLikers] = useState([]);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(content.comment_count || 0);
-  const [repostOpen, setRepostOpen] = useState(false);
   const [repostCount, setRepostCount] = useState(content.repost_count || 0);
-  const [hasReposted, setHasReposted] = useState(false);
 
   useEffect(() => {
     setCaptionText(content.caption ?? '');
@@ -64,23 +42,6 @@ const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) =>
   useEffect(() => {
     setRepostCount(content.repost_count || 0);
   }, [content.id, content.repost_count]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser) {
-      setHasReposted(false);
-      return;
-    }
-    let cancelled = false;
-    supabase
-      .from('reposts')
-      .select('id', { head: true, count: 'exact' })
-      .eq('user_id', currentUser.id)
-      .eq('content_id', content.id)
-      .then(({ count }) => {
-        if (!cancelled) setHasReposted((count ?? 0) > 0);
-      });
-    return () => { cancelled = true; };
-  }, [content.id, isAuthenticated, currentUser]);
 
   useEffect(() => {
     if (!likersOpen) return;
@@ -130,138 +91,6 @@ const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) =>
     })();
     return () => { cancelled = true; };
   }, [likersOpen, content.id, likeCount]);
-
-  const postOwnerId = content.creator_id ?? creator?.id;
-  const isPostOwner = !!(currentUser && postOwnerId && currentUser.id === postOwnerId);
-  const canDelete = isPostOwner || isModerator || isOwner;
-  const isModerating = canDelete && !isPostOwner; // mod/owner deleting someone else's post
-
-  const ownerDisplayName = creator?.display_name || currentUser?.user_metadata?.display_name || currentUser?.email?.split('@')[0] || '';
-  const expectedConfirmation = isModerating
-    ? 'OnlyCats / moderate'
-    : `OnlyCats / ${ownerDisplayName}`;
-  const canConfirmDelete = deleteConfirm.trim() === expectedConfirmation && !deleting;
-
-  const openDeleteDialog = () => {
-    setDeleteConfirm('');
-    setDeleteOpen(true);
-  };
-
-  const openCaptionEdit = () => {
-    setCaptionDraft(captionText);
-    setCaptionEditOpen(true);
-  };
-
-  const handleSaveCaption = async () => {
-    if (!isPostOwner || !currentUser) return;
-    const trimmed = captionDraft.trim();
-    if (trimmed.length > CAPTION_MAX_LEN) {
-      toast.error(`Caption is too long (max ${CAPTION_MAX_LEN} characters)`);
-      return;
-    }
-    setSavingCaption(true);
-    try {
-      const value = trimmed.length > 0 ? trimmed : null;
-      const { error } = await supabase
-        .from('content')
-        .update({ caption: value })
-        .eq('id', content.id)
-        .eq('creator_id', currentUser.id);
-      if (error) throw error;
-      setCaptionText(value ?? '');
-      onCaptionChange?.(content.id, value);
-      toast.success('Caption updated');
-      setCaptionEditOpen(false);
-    } catch (err) {
-      console.error('Caption update failed:', err);
-      toast.error(err.message || 'Failed to update caption');
-    } finally {
-      setSavingCaption(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!canDelete || !canConfirmDelete) return;
-
-    setDeleting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('Not signed in');
-
-      const res = await apiServerClient.fetch(`/uploads/content/${content.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (!res.ok) {
-        let message = `Delete failed (${res.status})`;
-        let details = '';
-        try {
-          const body = await res.json();
-          if (body?.error) message = body.error;
-          if (body?.code) details = body.code;
-        } catch (_) { /* ignore */ }
-        const err = new Error(message);
-        err.details = details;
-        throw err;
-      }
-
-      toast.success('Post deleted');
-      setDeleteOpen(false);
-      onDelete?.(content.id);
-    } catch (err) {
-      console.error('Delete failed:', err);
-      toast.error(err.message || 'Failed to delete post. Try again.');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser) {
-      setIsLiked(false);
-      return;
-    }
-    let cancelled = false;
-    supabase
-      .from('likes')
-      .select('id', { head: true, count: 'exact' })
-      .eq('user_id', currentUser.id)
-      .eq('content_id', content.id)
-      .then(({ count }) => {
-        if (!cancelled) setIsLiked((count ?? 0) > 0);
-      });
-    return () => { cancelled = true; };
-  }, [content.id, isAuthenticated, currentUser]);
-
-  const handleLike = async () => {
-    if (!isAuthenticated || !currentUser) {
-      toast.error('Please login to like content');
-      return;
-    }
-
-    try {
-      if (isLiked) {
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .eq('user_id', currentUser.id)
-          .eq('content_id', content.id);
-        if (error) throw error;
-        setIsLiked(false);
-        setLikeCount((prev) => Math.max(0, prev - 1));
-      } else {
-        const { error } = await supabase
-          .from('likes')
-          .insert({ user_id: currentUser.id, content_id: content.id });
-        if (error) throw error;
-        setIsLiked(true);
-        setLikeCount((prev) => prev + 1);
-      }
-    } catch (err) {
-      console.error('Like toggle failed:', err);
-      toast.error('This cat is feeling finicky. Try again.');
-    }
-  };
 
   const fileUrl = content.file_url;
   const avatarUrl = creator?.avatar_url;
@@ -345,140 +174,55 @@ const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) =>
             </div>
           )}
 
-          {(captionText || isPostOwner) && (
-            <div className="mb-3 flex items-start gap-2">
-              <p className={`text-sm flex-1 min-w-0 ${captionText ? 'line-clamp-3' : 'text-muted-foreground italic'}`}>
-                {captionText || (isPostOwner ? 'No caption — add one' : '')}
-              </p>
-              {isPostOwner && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 h-8 w-8"
-                  onClick={openCaptionEdit}
-                  aria-label="Edit caption"
-                  title="Edit caption"
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              )}
+          {captionText && (
+            <div className="mb-3">
+              <p className="text-sm line-clamp-3">{captionText}</p>
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <Button
-                variant={isLiked ? 'default' : 'ghost'}
-                size="sm"
-                onClick={handleLike}
-                className="transition-all"
-                aria-label={isLiked ? 'Unlike' : 'Like'}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="tabular-nums px-2 text-muted-foreground"
-                disabled={likeCount === 0}
-                onClick={() => likeCount > 0 && setLikersOpen(true)}
-                aria-label={likeCount === 0 ? 'No likes yet' : `See ${likeCount} likes`}
-                title={likeCount === 0 ? 'No likes yet' : 'See who liked this'}
-              >
-                {likeCount}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setCommentsOpen(true)}
-                aria-label="Comments"
-                title="Comments"
-              >
-                <MessageSquare className="w-4 h-4 mr-1" />
-                {commentCount}
-              </Button>
-              <Button
-                variant={hasReposted ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setRepostOpen(true)}
-                disabled={!isAuthenticated}
-                aria-label={hasReposted ? 'Edit repost' : 'Repost'}
-                title={hasReposted ? 'Edit repost' : 'Repost'}
-              >
-                <Repeat2 className="w-4 h-4 mr-1" />
-                {repostCount}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTipModalOpen(true)}
-                disabled={!isAuthenticated}
-              >
-                <DollarSign className="w-4 h-4 mr-1" />
-                {content.tip_count || 0}
-              </Button>
-            </div>
-            <div className="flex items-center gap-1">
-              {isPostOwner && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCollectionOpen(true)}
-                  aria-label="Save to collection"
-                  title="Save to collection"
-                >
-                  <Bookmark className="w-4 h-4" />
-                </Button>
-              )}
-              {canDelete && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={openDeleteDialog}
-                  disabled={deleting}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  aria-label={isModerating ? 'Remove post (moderation)' : 'Delete post'}
-                  title={isModerating ? 'Remove post (moderation)' : 'Delete post'}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 px-2 py-1" title="Likes">
+              <Heart className="w-4 h-4" />
+              <span className="tabular-nums">{likeCount}</span>
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="px-2"
+              disabled={likeCount === 0}
+              onClick={() => likeCount > 0 && setLikersOpen(true)}
+              title={likeCount === 0 ? 'No likes yet' : 'See who liked this'}
+            >
+              <Users className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCommentsOpen(true)}
+              aria-label="Comments"
+              title="Read comments"
+            >
+              <MessageSquare className="w-4 h-4 mr-1" />
+              {commentCount}
+            </Button>
+            <span className="inline-flex items-center gap-1.5 px-2 py-1" title="Reposts">
+              <Repeat2 className="w-4 h-4" />
+              <span className="tabular-nums">{repostCount}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-1" title="Tips">
+              <DollarSign className="w-4 h-4" />
+              <span className="tabular-nums">{content.tip_count || 0}</span>
+            </span>
           </div>
         </div>
       </Card>
-
-      <TipModal
-        isOpen={tipModalOpen}
-        onClose={() => setTipModalOpen(false)}
-        creatorId={creatorId}
-        creatorName={creatorName}
-      />
 
       <CommentsDialog
         open={commentsOpen}
         onOpenChange={setCommentsOpen}
         contentId={content.id}
-        onCountChange={(fn) => setCommentCount((n) => fn(n))}
       />
-
-      <RepostDialog
-        open={repostOpen}
-        onOpenChange={setRepostOpen}
-        contentId={content.id}
-        onReposted={() => { setHasReposted(true); setRepostCount((n) => n + 1); }}
-        onUnreposted={() => { setHasReposted(false); setRepostCount((n) => Math.max(0, n - 1)); }}
-      />
-
-      {isPostOwner && (
-        <AddToCollectionDialog
-          open={collectionOpen}
-          onOpenChange={setCollectionOpen}
-          contentId={content.id}
-        />
-      )}
 
       <Dialog open={likersOpen} onOpenChange={setLikersOpen}>
         <DialogContent className="max-w-md max-h-[min(28rem,70vh)] flex flex-col">
@@ -533,78 +277,6 @@ const ContentCard = ({ content, creator, repost, onDelete, onCaptionChange }) =>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={captionEditOpen} onOpenChange={(open) => { if (!savingCaption) setCaptionEditOpen(open); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit caption</DialogTitle>
-            <DialogDescription>
-              Update the text shown under your post. Leave empty to remove the caption.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={captionDraft}
-            onChange={(e) => setCaptionDraft(e.target.value)}
-            rows={4}
-            maxLength={CAPTION_MAX_LEN}
-            className="text-gray-900 placeholder:text-gray-500"
-            placeholder="Write a caption..."
-            disabled={savingCaption}
-          />
-          <p className="text-xs text-muted-foreground">{captionDraft.length}/{CAPTION_MAX_LEN}</p>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setCaptionEditOpen(false)} disabled={savingCaption}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveCaption} disabled={savingCaption}>
-              {savingCaption ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isModerating ? 'Remove this post (moderation)' : 'Delete this post?'}</DialogTitle>
-            <DialogDescription>
-              {isModerating
-                ? `You are removing a post by ${creator?.display_name || 'another user'} as a moderator. This permanently removes the post and its uploaded file. This action is logged.`
-                : 'This permanently removes the post and its uploaded file. This cannot be undone.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Type <code className="px-1 py-0.5 rounded bg-muted font-mono text-xs">{expectedConfirmation}</code> to confirm.
-            </p>
-            <Input
-              autoFocus
-              value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
-              placeholder={expectedConfirmation}
-              className="font-mono text-sm text-gray-900 placeholder:text-gray-500"
-              disabled={deleting}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setDeleteOpen(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={!canConfirmDelete}
-            >
-              {deleting ? (isModerating ? 'Removing...' : 'Deleting...') : (isModerating ? 'Remove post' : 'Delete post')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };

@@ -3,18 +3,17 @@ import { Helmet } from 'react-helmet';
 import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
 import ContentCard from '@/components/ContentCard.jsx';
-import ContentUpload from '@/components/ContentUpload.jsx';
 import CollectionsManager from '@/components/CollectionsManager.jsx';
 import MarkdownContent from '@/components/MarkdownContent.jsx';
 import TaglineText from '@/components/TaglineText.jsx';
 import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
+import ReadOnlyNotice from '@/components/ReadOnlyNotice.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Users, UserPlus, UserMinus, Upload, Settings, MapPin, Globe, Link as LinkIcon } from 'lucide-react';
+import { Users, Settings, MapPin, Globe, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 const SOCIAL_LABELS = {
@@ -27,9 +26,7 @@ const CreatorProfile = () => {
   const { currentUser, isAuthenticated } = useAuth();
   const [creator, setCreator] = useState(null);
   const [content, setContent] = useState([]);
-  const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const isOwnProfile = !!(creator && currentUser && creator.id === currentUser.id);
 
@@ -190,59 +187,6 @@ const CreatorProfile = () => {
     } : prev));
   }, [currentUser, creator?.id]);
 
-  useEffect(() => {
-    if (!creator || !currentUser) {
-      setIsFollowing(false);
-      return;
-    }
-    let cancelled = false;
-    supabase
-      .from('followers')
-      .select('id', { head: true, count: 'exact' })
-      .eq('user_id', currentUser.id)
-      .eq('creator_id', creator.id)
-      .then(({ count }) => {
-        if (!cancelled) setIsFollowing((count ?? 0) > 0);
-      });
-    return () => { cancelled = true; };
-  }, [creator, currentUser]);
-
-  const handleFollow = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to follow creators');
-      return;
-    }
-    try {
-      if (isFollowing) {
-        const { error } = await supabase
-          .from('followers')
-          .delete()
-          .eq('user_id', currentUser.id)
-          .eq('creator_id', creatorId);
-        if (error) throw error;
-        setIsFollowing(false);
-        setCreator((c) => c && { ...c, follower_count: Math.max(0, (c.follower_count ?? 0) - 1) });
-        toast.success('Unfollowed creator');
-      } else {
-        const { error } = await supabase
-          .from('followers')
-          .insert({ user_id: currentUser.id, creator_id: creatorId });
-        if (error) throw error;
-        setIsFollowing(true);
-        setCreator((c) => c && { ...c, follower_count: (c.follower_count ?? 0) + 1 });
-        toast.success('Following creator');
-      }
-    } catch (err) {
-      console.error('Follow toggle failed:', err);
-      toast.error('Failed to update follow status');
-    }
-  };
-
-  const handleUploadSuccess = () => {
-    setUploadModalOpen(false);
-    fetchCreatorData();
-  };
-
   if (loading) {
     return (
       <>
@@ -349,37 +293,25 @@ const CreatorProfile = () => {
               )}
 
               <div className="flex items-center justify-center gap-3">
-                {!isOwnProfile && isAuthenticated && (
-                  <Button size="lg" onClick={handleFollow}>
-                    {isFollowing ? (
-                      <><UserMinus className="w-5 h-5 mr-2" />Unfollow</>
-                    ) : (
-                      <><UserPlus className="w-5 h-5 mr-2" />Follow</>
-                    )}
+                {isOwnProfile && (
+                  <Button size="lg" variant="outline" asChild>
+                    <Link to="/settings"><Settings className="w-5 h-5 mr-2" />Save your data</Link>
                   </Button>
                 )}
-
-                {isOwnProfile && (
-                  <>
-                    <Button size="lg" onClick={() => setUploadModalOpen(true)}>
-                      <Upload className="w-5 h-5 mr-2" />
-                      Upload Content
-                    </Button>
-                    <Button size="lg" variant="outline" asChild>
-                      <Link to="/settings"><Settings className="w-5 h-5 mr-2" />Settings</Link>
-                    </Button>
-                  </>
-                )}
               </div>
+
+              {isOwnProfile && (
+                <div className="max-w-xl mx-auto mt-6 text-left">
+                  <ReadOnlyNotice message="This profile is frozen. You cannot post, edit, or follow anyone any more, but you can still download a copy of your data from Settings." />
+                </div>
+              )}
             </div>
 
             <div>
               <h2 className="text-2xl font-bold mb-6">Content</h2>
               {content.length === 0 ? (
                 <div className="text-center py-20">
-                  <p className="text-muted-foreground">
-                    {isOwnProfile ? 'Upload your first cat content to get started' : 'No content yet'}
-                  </p>
+                  <p className="text-muted-foreground">No content here.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -389,22 +321,6 @@ const CreatorProfile = () => {
                       content={item.content}
                       creator={item.kind === 'own' ? creator : item.creator}
                       repost={item.repost}
-                      onDelete={(deletedId) =>
-                        setContent((items) =>
-                          items.filter(
-                            (i) => !(i.kind === 'own' && i.content.id === deletedId),
-                          ),
-                        )
-                      }
-                      onCaptionChange={(postId, caption) =>
-                        setContent((items) =>
-                          items.map((row) =>
-                            row.kind === 'own' && row.content.id === postId
-                              ? { ...row, content: { ...row.content, caption } }
-                              : row,
-                          ),
-                        )
-                      }
                     />
                   ))}
                 </div>
@@ -413,23 +329,11 @@ const CreatorProfile = () => {
 
             <div className="mt-12">
               <h2 className="text-2xl font-bold mb-6">Collections</h2>
-              <CollectionsManager userId={creator.id} editable={isOwnProfile} />
+              <CollectionsManager userId={creator.id} />
             </div>
           </div>
         </div>
       </main>
-
-      <Dialog open={uploadModalOpen} onOpenChange={setUploadModalOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Upload Cat Content</DialogTitle>
-          </DialogHeader>
-          <ContentUpload
-            creatorId={creatorId}
-            onUploadSuccess={handleUploadSuccess}
-          />
-        </DialogContent>
-      </Dialog>
 
       <Footer />
     </>

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
+import ReadOnlyNotice from '@/components/ReadOnlyNotice.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
@@ -193,6 +194,11 @@ const AdminPage = () => {
                 </p>
               </div>
             </div>
+
+            <ReadOnlyNotice
+              className="mb-6"
+              message="OnlyCats is discontinued and the API refuses every write, so roles cannot be changed from here any more."
+            />
 
             <Card className="p-6 mb-6">
               <h2 className="text-lg font-semibold mb-1">Moderator management</h2>

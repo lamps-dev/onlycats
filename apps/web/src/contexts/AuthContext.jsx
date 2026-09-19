@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
@@ -75,6 +75,26 @@ export const AuthProvider = ({ children }) => {
 	const navigate = useNavigate();
 	const [currentUser, setCurrentUser] = useState(null);
 	const [initialLoading, setInitialLoading] = useState(true);
+	// Guards the DEVICE_REVOKED handling so a revoked device signs out at most
+	// once instead of looping (getSession + onAuthStateChange can both observe it
+	// before the local session is cleared). Reset once we see a healthy session.
+	const deviceRevokedRef = useRef(false);
+
+	// A revoked device must sign out LOCALLY only. A global signOut (the default)
+	// deletes every session for the account server-side, so one flagged device
+	// would cascade into "Session not found" 401s on all the user's other
+	// sessions — the exact failure we're fixing.
+	const signOutRevokedDevice = useCallback(async () => {
+		if (deviceRevokedRef.current) return;
+		deviceRevokedRef.current = true;
+		// Clear the httpOnly oc_device cookie too. Otherwise it still points at the
+		// revoked device_sessions row, and the next login would immediately trip
+		// DEVICE_REVOKED again — a perpetual logout trap on this browser.
+		try {
+			await apiServerClient.fetch('/devices/sign-out', { method: 'POST' });
+		} catch (_) { /* best-effort */ }
+		await supabase.auth.signOut({ scope: 'local' });
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -107,9 +127,12 @@ export const AuthProvider = ({ children }) => {
 				]);
 				if (!cancelled) {
 					if (account.deviceRevoked) {
-						await supabase.auth.signOut();
+						await signOutRevokedDevice();
 						return;
 					}
+					// Healthy authenticated session — allow a future genuine revoke
+					// to be handled again.
+					deviceRevokedRef.current = false;
 					const merged = mergeUserWithProfile(user, profile, account.sanction);
 					if (merged && account.role) merged.role = account.role;
 					setCurrentUser(merged);
@@ -137,7 +160,7 @@ export const AuthProvider = ({ children }) => {
 			clearTimeout(safetyTimer);
 			subscription.unsubscribe();
 		};
-	}, [navigate]);
+	}, [navigate, signOutRevokedDevice]);
 
 	const login = useCallback(async (email, password) => {
 		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
@@ -146,30 +169,6 @@ export const AuthProvider = ({ children }) => {
 			password,
 		});
 		if (error) throw error;
-		return data;
-	}, []);
-
-	const signup = useCallback(async (email, password, _passwordConfirm, name) => {
-		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
-		const emailRedirectTo =
-			typeof window !== 'undefined' ? `${window.location.origin}/discover` : undefined;
-
-		await apiServerClient.post('/account/signup-eligibility');
-
-		const { data, error } = await supabase.auth.signUp({
-			email: normalizedEmail,
-			password,
-			options: {
-				data: { display_name: name?.trim() || undefined },
-				emailRedirectTo,
-			},
-		});
-		if (error) throw error;
-
-		if (data?.user?.id) {
-			await apiServerClient.post('/account/claim-signup-ip', { userId: data.user.id });
-		}
-
 		return data;
 	}, []);
 
@@ -190,20 +189,13 @@ export const AuthProvider = ({ children }) => {
 		if (error) throw error;
 	}, []);
 
-	const authWithDiscord = useCallback(async () => {
-		const { data, error } = await supabase.auth.signInWithOAuth({
-			provider: 'discord',
-			options: { redirectTo: `${window.location.origin}/discover` },
-		});
-		if (error) throw error;
-		return data;
-	}, []);
-
 	const logout = useCallback(async () => {
 		try {
 			await apiServerClient.fetch('/devices/sign-out', { method: 'POST' });
 		} catch (_) { /* best-effort cookie clear */ }
-		await supabase.auth.signOut();
+		// Local scope: sign out THIS browser only. Never revoke the account's
+		// sessions on its other devices from a normal logout.
+		await supabase.auth.signOut({ scope: 'local' });
 	}, []);
 
 	const refreshProfile = useCallback(async () => {
@@ -213,13 +205,14 @@ export const AuthProvider = ({ children }) => {
 			fetchServerAccount(session?.access_token),
 		]);
 		if (account.deviceRevoked) {
-			await supabase.auth.signOut();
+			await signOutRevokedDevice();
 			return;
 		}
+		deviceRevokedRef.current = false;
 		const merged = mergeUserWithProfile(session?.user, profile, account.sanction);
 		if (merged && account.role) merged.role = account.role;
 		setCurrentUser(merged);
-	}, []);
+	}, [signOutRevokedDevice]);
 
 	const role = currentUser?.role ?? 'user';
 	const sanction = currentUser?.sanction ?? null;
@@ -227,10 +220,8 @@ export const AuthProvider = ({ children }) => {
 		() => ({
 			currentUser,
 			login,
-			signup,
 			requestPasswordReset,
 			updatePassword,
-			authWithDiscord,
 			logout,
 			refreshProfile,
 			isAuthenticated: !!currentUser,
@@ -241,7 +232,7 @@ export const AuthProvider = ({ children }) => {
 			isBanned: sanction?.kind === 'ban',
 			isTimedOut: sanction?.kind === 'timeout',
 		}),
-		[currentUser, login, signup, requestPasswordReset, updatePassword, authWithDiscord, logout, refreshProfile, role, sanction],
+		[currentUser, login, requestPasswordReset, updatePassword, logout, refreshProfile, role, sanction],
 	);
 
 	if (initialLoading) return <LoadingScreen />;

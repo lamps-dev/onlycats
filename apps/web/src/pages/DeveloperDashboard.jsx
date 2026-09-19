@@ -1,14 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
-import ApiKeyManagement from '@/components/ApiKeyManagement.jsx';
-import BotsManagement from '@/components/BotsManagement.jsx';
+import ReadOnlyNotice from '@/components/ReadOnlyNotice.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Key, Trash2, Calendar, Activity, TrendingUp } from 'lucide-react';
+import { Key, Calendar, Activity, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -73,23 +71,6 @@ const DeveloperDashboard = () => {
     fetchUsageStats();
   }, [fetchApiKeys, fetchUsageStats]);
 
-  const handleRevokeKey = async (keyId) => {
-    if (!window.confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
-      return;
-    }
-    const { error } = await supabase
-      .from('api_keys')
-      .update({ revoked: true })
-      .eq('id', keyId);
-    if (error) {
-      console.error('Failed to revoke API key:', error);
-      toast.error('Failed to revoke API key');
-      return;
-    }
-    toast.success('API key revoked');
-    fetchApiKeys();
-  };
-
   return (
     <>
       <Helmet>
@@ -106,9 +87,10 @@ const DeveloperDashboard = () => {
               <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ letterSpacing: '-0.02em' }}>
                 Developer Dashboard
               </h1>
-              <p className="text-lg text-muted-foreground">
-                Manage your API keys and monitor usage statistics
+              <p className="text-lg text-muted-foreground mb-6">
+                A record of the keys this account used to hold. The API is retired.
               </p>
+              <ReadOnlyNotice message="The OnlyCats API is discontinued. Keys can no longer be created, revoked, or used, and bot accounts are gone. Nothing on this page still works against a live service." />
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6 mb-8">
@@ -140,7 +122,7 @@ const DeveloperDashboard = () => {
               </Card>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-8 mb-8">
+            <div className="mb-8">
               <div>
                 <h2 className="text-2xl font-bold mb-4">API Keys</h2>
                 {loading ? (
@@ -155,8 +137,7 @@ const DeveloperDashboard = () => {
                 ) : apiKeys.length === 0 ? (
                   <Card className="p-8 text-center">
                     <Key className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground">No API keys yet</p>
-                    <p className="text-sm text-muted-foreground mt-1">Generate your first key to get started</p>
+                    <p className="text-muted-foreground">No API keys on this account</p>
                   </Card>
                 ) : (
                   <div className="space-y-4">
@@ -176,11 +157,6 @@ const DeveloperDashboard = () => {
                               {key.key.substring(0, 12)}...{key.key.substring(key.key.length - 4)}
                             </p>
                           </div>
-                          {!key.revoked && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRevokeKey(key.id)}>
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                          )}
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
@@ -200,15 +176,6 @@ const DeveloperDashboard = () => {
                 )}
               </div>
 
-              <div>
-                <h2 className="text-2xl font-bold mb-4">Generate New Key</h2>
-                <ApiKeyManagement onKeyCreated={fetchApiKeys} />
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-4">Bots</h2>
-              <BotsManagement />
             </div>
 
             {Object.keys(usageStats.byEndpoint).length > 0 && (

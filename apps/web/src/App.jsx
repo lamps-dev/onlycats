@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Route, Routes, BrowserRouter as Router } from 'react-router-dom';
+import { Navigate, Route, Routes, BrowserRouter as Router } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider } from '@/contexts/AuthContext.jsx';
 import { ThemeProvider } from '@/contexts/ThemeContext.jsx';
@@ -9,7 +9,6 @@ import ScrollToTop from './components/ScrollToTop.jsx';
 import ProtectedRoute from '@/components/ProtectedRoute.jsx';
 import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import SignupPage from './pages/SignupPage.jsx';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import DiscoveryPage from './pages/DiscoveryPage.jsx';
@@ -23,6 +22,7 @@ import TermsPage from './pages/TermsPage.jsx';
 import PrivacyPage from './pages/PrivacyPage.jsx';
 import ModerationPage from './pages/ModerationPage.jsx';
 import SecretPage from './pages/SecretPage.jsx';
+import DiscontinuedPostPage from './pages/DiscontinuedPostPage.jsx';
 
 function App() {
   return (
@@ -33,13 +33,16 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
+            {/* Signups are closed for good. Old links land on the explanation. */}
+            <Route path="/signup" element={<Navigate to="/blog/onlycats-is-discontinued" replace />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/discover" element={<DiscoveryPage />} />
             <Route path="/api-docs" element={<ApiDocumentation />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/blog" element={<DiscontinuedPostPage />} />
+            <Route path="/blog/onlycats-is-discontinued" element={<DiscontinuedPostPage />} />
             <Route path="/feed" element={
               <ProtectedRoute>
                 <FeedPage />

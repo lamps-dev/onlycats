@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
+import ReadOnlyNotice from '@/components/ReadOnlyNotice.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
@@ -430,6 +431,11 @@ const ModerationPage = () => {
                 </p>
               </div>
             </div>
+
+            <ReadOnlyNotice
+              className="mb-6"
+              message="OnlyCats is discontinued and the API refuses every write, so sanctions cannot be issued or lifted from here any more. This page is a record of what was already applied."
+            />
 
             {error && (
               <div className="p-3 mb-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-2">

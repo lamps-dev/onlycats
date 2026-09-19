@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Header from '@/components/Header.jsx';
 import Footer from '@/components/Footer.jsx';
+import ReadOnlyNotice from '@/components/ReadOnlyNotice.jsx';
 import apiServerClient from '@/lib/apiServerClient.js';
 import { Code, Key, Zap, AlertCircle, CheckCircle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
@@ -73,9 +74,10 @@ const ApiDocumentation = () => {
               <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{letterSpacing: '-0.02em'}}>
                 API Documentation
               </h1>
-              <p className="text-lg text-muted-foreground">
-                Integrate OnlyCats cat content into your applications with our developer API
+              <p className="text-lg text-muted-foreground mb-6">
+                A record of the developer API this site used to offer
               </p>
+              <ReadOnlyNotice message="The OnlyCats API is retired. Keys cannot be created, bot accounts are gone, and every write endpoint refuses the request. Treat everything below as documentation of a dead service." />
             </div>
 
             <div className="space-y-12">
@@ -127,8 +129,9 @@ const ApiDocumentation = () => {
                   <div className="bg-muted/50 rounded-xl p-4 border">
                     <p className="text-sm font-medium mb-2">Getting an API Key</p>
                     <p className="text-sm text-muted-foreground">
-                      Sign up for a free account and generate your API key from the Developer Dashboard. 
-                      Each key has a rate limit of 100 requests per hour.
+                      You cannot. OnlyCats is discontinued, accounts can no longer be created, and
+                      key generation has been removed. This page is kept as a record of what the API
+                      used to do.
                     </p>
                   </div>
                 </Card>

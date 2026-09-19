@@ -8,10 +8,13 @@ import moderationRouter from './moderation.js';
 import devicesRouter from './devices.js';
 import botsRouter from './bots.js';
 import botApiRouter from './bot-api.js';
+import { readOnlyGuard } from '../middleware/readOnly.js';
 
 export default () => {
 	const router = Router();
 	router.get('/health', healthCheck);
+	// Discontinued service: refuse every state-changing request up front.
+	router.use(readOnlyGuard);
 	router.use('/api', apiRouter);
 	router.use('/uploads', uploadsRouter);
 	router.use('/account', accountRouter);

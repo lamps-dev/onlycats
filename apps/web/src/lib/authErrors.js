@@ -20,7 +20,7 @@ export function mapAuthError(error) {
 		return 'An account with this email already exists. Try logging in instead.';
 	}
 	if (lower.includes('signup_disabled') || lower.includes('signups not allowed')) {
-		return 'New signups are disabled. Contact support if this is a mistake.';
+		return 'OnlyCats is discontinued. New accounts can no longer be created.';
 	}
 	return raw || 'Something went wrong. Please try again.';
 }

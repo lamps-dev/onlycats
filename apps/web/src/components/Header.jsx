@@ -6,6 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext.jsx';
 import { Button } from '@/components/ui/button';
 import { Cat, LogOut, Shield, Settings, Sun, Moon, Gavel } from 'lucide-react';
 import TimeoutBanner from '@/components/TimeoutBanner.jsx';
+import DiscontinuedBanner from '@/components/DiscontinuedBanner.jsx';
 import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
 
 const Header = () => {
@@ -23,6 +24,7 @@ const Header = () => {
 
   return (
     <>
+    <DiscontinuedBanner />
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
@@ -117,14 +119,9 @@ const Header = () => {
               {resolved === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             {!isAuthenticated ? (
-              <>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
-                  Login
-                </Button>
-                <Button size="sm" onClick={() => navigate('/signup')}>
-                  Sign Up
-                </Button>
-              </>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
+                Login
+              </Button>
             ) : (
               <>
                 <span className="hidden sm:inline-flex items-center gap-2 max-w-[12rem] sm:max-w-[16rem]">

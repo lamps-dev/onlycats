@@ -13,9 +13,11 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import { FolderPlus, Pencil, Trash2, X, ChevronRight, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
-const CollectionsManager = ({ userId, editable = false }) => {
+// OnlyCats is read-only: collections can be browsed but never changed, so the
+// editing controls are switched off regardless of who is looking.
+const CollectionsManager = ({ userId }) => {
   const { currentUser } = useAuth();
-  const canEdit = editable && !!currentUser && currentUser.id === userId;
+  const canEdit = false;
 
   const [loading, setLoading] = useState(true);
   const [collections, setCollections] = useState([]);

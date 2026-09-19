@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import Header from '@/components/Header.jsx';
 import FeedItem from '@/components/FeedItem.jsx';
-import ContentUpload from '@/components/ContentUpload.jsx';
 import supabase from '@/lib/supabaseClient.js';
 import { useAuth } from '@/contexts/AuthContext.jsx';
-import { Heart, RefreshCw, AlertCircle, Plus, Shuffle } from 'lucide-react';
+import { Heart, RefreshCw, AlertCircle, Shuffle } from 'lucide-react';
 
 const RANDOMIZE_STORAGE_KEY = 'onlycats.feed.randomize';
 
@@ -52,7 +50,6 @@ const FeedPage = () => {
   const [feedItems, setFeedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [randomize, setRandomize] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -135,12 +132,6 @@ const FeedPage = () => {
       <main className="relative">
         {/* Top controls floating over scroller */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
-          {currentUser && (
-            <Button size="sm" onClick={() => setUploadOpen(true)} className="shadow-lg">
-              <Plus className="w-4 h-4 mr-2" />
-              Upload
-            </Button>
-          )}
           <Button variant="secondary" size="sm" onClick={() => fetchFeed()} disabled={loading} className="shadow-lg">
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -206,25 +197,6 @@ const FeedPage = () => {
         )}
       </main>
 
-      {currentUser && (
-        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Upload a cat</DialogTitle>
-              <DialogDescription>
-                Share a photo or video — it&apos;ll appear on your profile and your followers&apos; feeds.
-              </DialogDescription>
-            </DialogHeader>
-            <ContentUpload
-              creatorId={currentUser.id}
-              onUploadSuccess={() => {
-                setUploadOpen(false);
-                fetchFeed(true);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
     </>
   );
 };

@@ -3,36 +3,26 @@ import { Link } from 'react-router-dom';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
-  Heart, MessageSquare, Repeat2, DollarSign, Volume2, VolumeX, Play, Pencil,
+  Heart, MessageSquare, Repeat2, DollarSign, Volume2, VolumeX, Play,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import supabase from '@/lib/supabaseClient.js';
-import { useAuth } from '@/contexts/AuthContext.jsx';
 import CommentsDialog from '@/components/CommentsDialog.jsx';
-import RepostDialog from '@/components/RepostDialog.jsx';
-import TipModal from '@/components/TipModal.jsx';
 import StaffRoleBadge from '@/components/StaffRoleBadge.jsx';
-
-const CAPTION_MAX_LEN = 2000;
 
 const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
   const { content, creator, repost } = item;
-  const { currentUser, isAuthenticated } = useAuth();
   const rootRef = useRef(null);
   const videoRef = useRef(null);
   const [isActive, setIsActive] = useState(false);
   const [paused, setPaused] = useState(false);
 
   const [likeCount, setLikeCount] = useState(content.like_count || 0);
-  const [isLiked, setIsLiked] = useState(false);
   const [commentCount, setCommentCount] = useState(content.comment_count || 0);
   const [repostCount, setRepostCount] = useState(content.repost_count || 0);
-  const [hasReposted, setHasReposted] = useState(false);
 
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [repostOpen, setRepostOpen] = useState(false);
-  const [tipOpen, setTipOpen] = useState(false);
 
   const fileUrl = content.file_url;
   const isVideo = fileUrl && /\.(mp4|webm)(\?|$)/i.test(fileUrl);
@@ -76,48 +66,6 @@ const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
     const v = videoRef.current;
     if (v) v.muted = muted;
   }, [muted]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser) { setIsLiked(false); setHasReposted(false); return; }
-    let cancelled = false;
-    (async () => {
-      const [{ count: likeC }, { count: repostC }] = await Promise.all([
-        supabase.from('likes').select('id', { head: true, count: 'exact' })
-          .eq('user_id', currentUser.id).eq('content_id', content.id),
-        supabase.from('reposts').select('id', { head: true, count: 'exact' })
-          .eq('user_id', currentUser.id).eq('content_id', content.id),
-      ]);
-      if (cancelled) return;
-      setIsLiked((likeC ?? 0) > 0);
-      setHasReposted((repostC ?? 0) > 0);
-    })();
-    return () => { cancelled = true; };
-  }, [content.id, isAuthenticated, currentUser]);
-
-  const handleLike = async () => {
-    if (!isAuthenticated || !currentUser) {
-      toast.error('Please login to like content');
-      return;
-    }
-    try {
-      if (isLiked) {
-        const { error } = await supabase.from('likes').delete()
-          .eq('user_id', currentUser.id).eq('content_id', content.id);
-        if (error) throw error;
-        setIsLiked(false);
-        setLikeCount((n) => Math.max(0, n - 1));
-      } else {
-        const { error } = await supabase.from('likes')
-          .insert({ user_id: currentUser.id, content_id: content.id });
-        if (error) throw error;
-        setIsLiked(true);
-        setLikeCount((n) => n + 1);
-      }
-    } catch (err) {
-      console.error('Like toggle failed:', err);
-      toast.error('Could not update like');
-    }
-  };
 
   const togglePaused = () => {
     if (!isVideo) return;
@@ -211,31 +159,20 @@ const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
         </Button>
       )}
 
-      {/* Right-side action rail */}
+      {/* Right-side rail. OnlyCats is read-only, so these are counts, not buttons. */}
       <div className="absolute right-3 bottom-24 sm:bottom-10 flex flex-col items-center gap-4 z-10">
-        <ActionButton
-          icon={<Heart className={`w-6 h-6 ${isLiked ? 'fill-current text-pink-500' : 'text-white'}`} />}
-          label={likeCount}
-          onClick={handleLike}
-          ariaLabel={isLiked ? 'Unlike' : 'Like'}
-        />
+        <ActionStat icon={<Heart className="w-6 h-6 text-white" />} label={likeCount} title="Likes" />
         <ActionButton
           icon={<MessageSquare className="w-6 h-6 text-white" />}
           label={commentCount}
           onClick={() => setCommentsOpen(true)}
-          ariaLabel="Comments"
+          ariaLabel="Read comments"
         />
-        <ActionButton
-          icon={<Repeat2 className={`w-6 h-6 ${hasReposted ? 'text-green-400' : 'text-white'}`} />}
-          label={repostCount}
-          onClick={() => setRepostOpen(true)}
-          ariaLabel="Repost"
-        />
-        <ActionButton
+        <ActionStat icon={<Repeat2 className="w-6 h-6 text-white" />} label={repostCount} title="Reposts" />
+        <ActionStat
           icon={<DollarSign className="w-6 h-6 text-white" />}
           label={content.tip_count || 0}
-          onClick={() => setTipOpen(true)}
-          ariaLabel="Tip"
+          title="Tips"
         />
       </div>
 
@@ -277,26 +214,20 @@ const FeedItem = ({ item, muted, onToggleMute, onAutoplayBlocked }) => {
         open={commentsOpen}
         onOpenChange={setCommentsOpen}
         contentId={content.id}
-        onCountChange={(fn) => setCommentCount((n) => fn(n))}
       />
 
-      <RepostDialog
-        open={repostOpen}
-        onOpenChange={setRepostOpen}
-        contentId={content.id}
-        onReposted={() => { setHasReposted(true); setRepostCount((n) => n + 1); }}
-        onUnreposted={() => { setHasReposted(false); setRepostCount((n) => Math.max(0, n - 1)); }}
-      />
-
-      <TipModal
-        isOpen={tipOpen}
-        onClose={() => setTipOpen(false)}
-        creatorId={creatorId}
-        creatorName={creatorName}
-      />
     </section>
   );
 };
+
+const ActionStat = ({ icon, label, title }) => (
+  <div className="flex flex-col items-center gap-1" title={title}>
+    <span className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+      {icon}
+    </span>
+    <span className="text-xs text-white font-semibold tabular-nums drop-shadow">{label}</span>
+  </div>
+);
 
 const ActionButton = ({ icon, label, onClick, ariaLabel }) => (
   <button

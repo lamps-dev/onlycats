@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Cat, Heart } from 'lucide-react';
+import { Cat, Heart, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext.jsx';
+import { DISCONTINUED_POST_PATH } from '@/components/DiscontinuedBanner.jsx';
 
 const Footer = () => {
   const { isAuthenticated, currentUser } = useAuth();
@@ -20,13 +21,22 @@ const Footer = () => {
               </span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-xs">
-              The purrfect platform for cat content creators and their pawsome fans.
+              Discontinued. This service is no longer maintained and is not recommended for use.
             </p>
           </div>
 
           <div>
             <h3 className="font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>
+                <Link
+                  to={DISCONTINUED_POST_PATH}
+                  className="inline-flex items-center gap-1.5 font-medium text-destructive hover:underline"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Why this service is discontinued
+                </Link>
+              </li>
               <li>
                 <Link to="/discover" className="hover:text-primary transition-colors">
                   Discover Creators
@@ -53,19 +63,20 @@ const Footer = () => {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Cat Pun Corner</h3>
+            <h3 className="font-semibold mb-4">Status</h3>
             <p className="text-sm text-muted-foreground">
-              You have got to be kitten me right meow! This site is fur real the best place for cat content.
+              Shut down for good. The database behind this site was not recoverable after a long
+              stretch of inactivity, and nothing here is being maintained or supported.
             </p>
           </div>
         </div>
 
         <div className="border-t mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2026 OnlyCats. Made with <Heart className="w-4 h-4 inline text-secondary fill-current" /> for cats everywhere.
+            © 2026 OnlyCats. Made with <Heart className="w-4 h-4 inline text-secondary fill-current" /> for cats everywhere, then retired.
           </p>
           <p className="text-xs text-muted-foreground">
-            No actual cats were harmed in the making of this parody site.
+            No actual cats were harmed in the making, or the shutting down, of this parody site.
           </p>
         </div>
       </div>
