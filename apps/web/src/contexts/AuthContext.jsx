@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient.js';
 import apiServerClient from '@/lib/apiServerClient.js';
 import BannedScreen from '@/components/BannedScreen.jsx';
+import { isPreExistingAccount, NEW_ACCOUNT_REJECTED_MESSAGE } from '@/lib/readOnly.js';
 
 const AuthContext = createContext(null);
 
@@ -79,6 +80,9 @@ export const AuthProvider = ({ children }) => {
 	// once instead of looping (getSession + onAuthStateChange can both observe it
 	// before the local session is cleared). Reset once we see a healthy session.
 	const deviceRevokedRef = useRef(false);
+	// Same one-shot guarding for a rejected sign-in: getSession and
+	// onAuthStateChange can both see the session before it is cleared.
+	const rejectedAccountRef = useRef(false);
 
 	// A revoked device must sign out LOCALLY only. A global signOut (the default)
 	// deletes every session for the account server-side, so one flagged device
@@ -96,12 +100,27 @@ export const AuthProvider = ({ children }) => {
 		await supabase.auth.signOut({ scope: 'local' });
 	}, []);
 
+	// Discord OAuth creates an account for an unknown identity, which is a
+	// signup by another name. Any session belonging to an account created after
+	// the shutdown is turned away here and the browser is signed out.
+	const signOutRejectedAccount = useCallback(async () => {
+		if (rejectedAccountRef.current) return;
+		rejectedAccountRef.current = true;
+		try {
+			await apiServerClient.fetch('/devices/sign-out', { method: 'POST' });
+		} catch (_) { /* best-effort */ }
+		await supabase.auth.signOut({ scope: 'local' });
+		setCurrentUser(null);
+		setInitialLoading(false);
+		navigate('/login', { replace: true, state: { authError: NEW_ACCOUNT_REJECTED_MESSAGE } });
+	}, [navigate]);
+
 	useEffect(() => {
 		let cancelled = false;
 		let lastProfileUserId = null;
 		let oauthHandled = false;
-		// A recovery link also carries `access_token=` in the hash, but we must
-		// NOT auto-navigate to /discover for it — the user needs to land on
+		// A recovery link also carries `access_token=` in the hash, but it must
+		// NOT be forwarded like an OAuth sign-in: the user needs to stay on
 		// /reset-password to set a new password. Exclude recovery here.
 		const hash = typeof window !== 'undefined' ? window.location.hash : '';
 		const isRecovery = hash.includes('type=recovery');
@@ -111,12 +130,19 @@ export const AuthProvider = ({ children }) => {
 			if (cancelled) return;
 			const user = session?.user ?? null;
 
+			if (user && !isPreExistingAccount(user)) {
+				await signOutRejectedAccount();
+				return;
+			}
+			if (user) rejectedAccountRef.current = false;
+
 			setCurrentUser((prev) => (prev?.id === user?.id ? prev : mergeUserWithProfile(user, null)));
 			setInitialLoading(false);
 
 			if (!oauthHandled && wasOAuthCallback && user) {
 				oauthHandled = true;
-				navigate('/discover', { replace: true });
+				// Settings is where the only remaining action lives: the data export.
+				navigate('/settings', { replace: true });
 			}
 
 			if (user && user.id !== lastProfileUserId) {
@@ -160,7 +186,7 @@ export const AuthProvider = ({ children }) => {
 			clearTimeout(safetyTimer);
 			subscription.unsubscribe();
 		};
-	}, [navigate, signOutRevokedDevice]);
+	}, [navigate, signOutRevokedDevice, signOutRejectedAccount]);
 
 	const login = useCallback(async (email, password) => {
 		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : email;
@@ -187,6 +213,23 @@ export const AuthProvider = ({ children }) => {
 	const updatePassword = useCallback(async (newPassword) => {
 		const { error } = await supabase.auth.updateUser({ password: newPassword });
 		if (error) throw error;
+	}, []);
+
+	// Sign in with Discord. Supabase has no "login only" flag for OAuth, so an
+	// unknown Discord identity still produces a session here; applySession
+	// rejects it on the way back. Turning off "Allow new users to sign up" in
+	// the Supabase dashboard is what stops the user row being created at all.
+	// Comes back to /login deliberately. It is a public route, so a slow session
+	// restore cannot bounce off a ProtectedRoute mid-callback, and a refusal
+	// from Supabase (signups disabled) lands on the page that shows the reason.
+	// A successful sign-in is forwarded to /settings once the session applies.
+	const authWithDiscord = useCallback(async () => {
+		const { data, error } = await supabase.auth.signInWithOAuth({
+			provider: 'discord',
+			options: { redirectTo: `${window.location.origin}/login` },
+		});
+		if (error) throw error;
+		return data;
 	}, []);
 
 	const logout = useCallback(async () => {
@@ -222,6 +265,7 @@ export const AuthProvider = ({ children }) => {
 			login,
 			requestPasswordReset,
 			updatePassword,
+			authWithDiscord,
 			logout,
 			refreshProfile,
 			isAuthenticated: !!currentUser,
@@ -232,7 +276,7 @@ export const AuthProvider = ({ children }) => {
 			isBanned: sanction?.kind === 'ban',
 			isTimedOut: sanction?.kind === 'timeout',
 		}),
-		[currentUser, login, requestPasswordReset, updatePassword, logout, refreshProfile, role, sanction],
+		[currentUser, login, requestPasswordReset, updatePassword, authWithDiscord, logout, refreshProfile, role, sanction],
 	);
 
 	if (initialLoading) return <LoadingScreen />;

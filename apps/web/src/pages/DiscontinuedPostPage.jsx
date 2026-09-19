@@ -81,6 +81,13 @@ const DiscontinuedPostPage = () => {
                   It was funny for about a week. The problem is that a joke does not reduce the
                   maintenance burden of an authentication system, and this one had several.
                 </p>
+                <p className="text-muted-foreground mt-3">
+                  If you want to see how it sold itself,{' '}
+                  <Link to="/archive" className="text-primary hover:underline">
+                    the old homepage is archived here
+                  </Link>
+                  . The buttons do nothing, which is fitting.
+                </p>
               </div>
 
               <div>
@@ -170,8 +177,9 @@ const DiscontinuedPostPage = () => {
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
                   <li>
                     <strong className="text-foreground">You cannot create an account.</strong> Signup
-                    has been removed entirely, including the Discord option, and the server refuses
-                    the request outright.
+                    is gone and the server refuses the request. Discord still works as a way to sign
+                    in, but only into an account that already existed; a Discord identity with no
+                    OnlyCats account behind it gets signed straight back out.
                   </li>
                   <li>
                     <strong className="text-foreground">You cannot post anything.</strong> Signing in

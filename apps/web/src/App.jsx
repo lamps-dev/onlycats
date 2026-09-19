@@ -23,6 +23,7 @@ import PrivacyPage from './pages/PrivacyPage.jsx';
 import ModerationPage from './pages/ModerationPage.jsx';
 import SecretPage from './pages/SecretPage.jsx';
 import DiscontinuedPostPage from './pages/DiscontinuedPostPage.jsx';
+import ArchivedHomePage from './pages/ArchivedHomePage.jsx';
 
 function App() {
   return (
@@ -43,6 +44,8 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/blog" element={<DiscontinuedPostPage />} />
             <Route path="/blog/onlycats-is-discontinued" element={<DiscontinuedPostPage />} />
+            {/* Snapshot of the homepage as it was before the shutdown. */}
+            <Route path="/archive" element={<ArchivedHomePage />} />
             <Route path="/feed" element={
               <ProtectedRoute>
                 <FeedPage />

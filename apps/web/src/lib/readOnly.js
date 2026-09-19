@@ -7,6 +7,25 @@ export const READ_ONLY = true;
 export const READ_ONLY_MESSAGE =
   'OnlyCats is discontinued. Posting, uploading, and every other change is permanently disabled. You can sign in to an existing account and download your data, and that is all.';
 
+// The moment OnlyCats closed to new accounts. Discord sign-in is allowed, but
+// only as a way back into an account that already existed: Supabase OAuth will
+// happily create a user for an unknown Discord identity, so anything created
+// from this point on is a signup wearing a login's clothes.
+export const ACCOUNTS_FROZEN_AT = Date.parse('2026-09-19T00:00:00Z');
+
+export const NEW_ACCOUNT_REJECTED_MESSAGE =
+  'That Discord account has no OnlyCats account attached to it. OnlyCats is discontinued, so new accounts cannot be created and you have been signed out. Discord sign-in only works for an account that already existed.';
+
+export const isPreExistingAccount = (user) => {
+  if (!user) return false;
+  const createdAt = Date.parse(user.created_at ?? '');
+  // If the timestamp is unreadable we let the session through. Supabase always
+  // sets created_at, so this is close to unreachable, and locking a real person
+  // out of their own data export is the worse failure of the two.
+  if (Number.isNaN(createdAt)) return true;
+  return createdAt < ACCOUNTS_FROZEN_AT;
+};
+
 export class ReadOnlyError extends Error {
   constructor(action) {
     super(action ? `${READ_ONLY_MESSAGE} (blocked: ${action})` : READ_ONLY_MESSAGE);

@@ -38,6 +38,11 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
+                <Link to="/archive" className="hover:text-primary transition-colors">
+                  The old homepage
+                </Link>
+              </li>
+              <li>
                 <Link to="/discover" className="hover:text-primary transition-colors">
                   Discover Creators
                 </Link>
